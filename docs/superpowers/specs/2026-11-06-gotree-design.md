@@ -42,12 +42,38 @@ in the chosen folder.
 
 ## Constraints
 
-- Primary platform: Windows 11, PowerShell, Go 1.27. Must also build and run on Linux (no Windows-only APIs).
+- Primary platform: Windows 11, PowerShell, Go 1.27. Must build and run on Linux and macOS too (see Platforms).
 - Shell out to the `git` CLI (`os/exec`), not a Go git library. It matches the user's own git behavior,
   credentials and config.
 - Dependencies: `github.com/charmbracelet/bubbletea`, `bubbles` (textinput for the filter, optional),
   `lipgloss`. Nothing else unless needed.
-- Module path: `github.com/r4b2/gotree` (builder's call if a different remote is set up later).
+- Module path: `github.com/yggdrion/gotree`.
+
+## Platforms, CI and release (user's decision: Linux, Windows, macOS; Homebrew for mac)
+
+- Targets: `linux/{amd64,arm64}`, `windows/{amd64,arm64}`, `darwin/{amd64,arm64}`. Pure Go, `CGO_ENABLED=0`.
+  No OS-specific code paths except: the `.exe` suffix (handled by the build), and path handling, which must use
+  `path/filepath` everywhere. Git output paths are forward-slash on Windows, so normalize them with
+  `filepath.FromSlash`/`filepath.Clean` before comparing or deduping.
+- Repo: `github.com/yggdrion/gotree`, so the module path is `github.com/yggdrion/gotree`.
+- Follow the conventions of the user's `gote` repo: emoji workflow names, actions pinned to a full commit SHA
+  with a `# vX.Y.Z` comment, and `secrets.HOMEBREW_TAP_TOKEN` (already used for the tap).
+- **CI workflow** (`.github/workflows/ci.yml`, on push to `main` and on PRs): matrix on `ubuntu-latest`,
+  `windows-latest`, `macos-latest`. It runs `go vet ./...`, `go test ./...` (including the git integration test,
+  so git must be on PATH, which all three runners have), and `go build ./...`. Plus one golangci-lint job on
+  ubuntu.
+- **Release workflow** (`.github/workflows/release.yml`). Trigger: `release: types: [published]`. The user creates
+  the GitHub release (and tag `vX.Y.Z`) by hand in the UI, and this workflow then builds and attaches the
+  binaries. It uses GoReleaser v2 (`goreleaser/goreleaser-action`) with `.goreleaser.yaml`:
+  - `release.mode: append` so it adds assets to the existing, hand-made release and does not fail on it.
+  - Archives: `tar.gz` for linux/darwin, `zip` for windows, plus `checksums.txt`.
+  - Version injected with `-ldflags "-X main.version={{.Version}}"`. `gotree --version` prints it.
+  - Homebrew: GoReleaser `homebrew_casks` pushes `Casks/gotree.rb` to `yggdrion/homebrew-tap`. The tap already
+    has `Casks/gote.rb`. Repository token: `HOMEBREW_TAP_TOKEN`. The binary is unsigned, so the cask needs a
+    postflight hook that strips the `com.apple.quarantine` xattr (GoReleaser documents this pattern). Otherwise
+    Gatekeeper blocks it.
+  - Install for the user: `brew install yggdrion/tap/gotree`.
+- Windows and Linux users download from the release page. No Scoop, winget or deb packages in v1.
 
 ## Behavior details (decided with the user)
 
