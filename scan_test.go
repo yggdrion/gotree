@@ -78,7 +78,9 @@ func TestDedupeLinkedWorktree(t *testing.T) {
 
 func TestSortRepos(t *testing.T) {
 	t1 := time.Unix(1000, 0)
-	mk := func(n string, d int) *Repo { return &Repo{Name: n, Status: Status{Updated: t1.Add(time.Duration(d) * time.Hour)}} }
+	mk := func(n string, d int) *Repo {
+		return &Repo{Name: n, Status: Status{Updated: t1.Add(time.Duration(d) * time.Hour)}}
+	}
 	rs := []*Repo{mk("1", 0), mk("3", 2), mk("2", 1)}
 	SortRepos(rs)
 	if rs[0].Name != "3" || rs[1].Name != "2" || rs[2].Name != "1" {
