@@ -36,3 +36,6 @@ go.work.sum
 # built binaries
 /gotree
 /gotree.exe
+
+# goreleaser output
+/dist/
