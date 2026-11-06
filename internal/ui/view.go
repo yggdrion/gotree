@@ -82,12 +82,16 @@ func (m model) dialogLines() []string {
 	}
 	c := m.queue[0]
 	var l []string
-	if c.kind == kRemove {
+	switch c.kind {
+	case kRemove:
 		l = append(l, fmt.Sprintf("Remove worktree %s? Branch %s is kept.", c.repo.Path, c.repo.Status.Branch))
 		if len(c.files) > 0 {
 			l = append(l, "Uncommitted changes, these changes will be lost:")
 		}
-	} else {
+	case kReset:
+		st := c.repo.Status
+		l = append(l, fmt.Sprintf("Reset %s to %s? Local commits (↑%d) and uncommitted changes will be lost:", c.repo.Name, st.Upstream, st.Ahead))
+	default:
 		l = append(l, fmt.Sprintf("Discard changes in %s and go back to %s? These changes will be lost:", c.repo.Name, c.repo.Status.Default))
 	}
 	for i, f := range c.files {

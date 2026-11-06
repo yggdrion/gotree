@@ -24,6 +24,7 @@ const (
 	kBack kind = iota
 	kPull
 	kRemove
+	kReset
 )
 
 type job struct {
@@ -36,7 +37,7 @@ type job struct {
 
 type confirm struct {
 	repo  *repo.Repo
-	kind  kind // kBack = discard dialog, kRemove = remove-worktree dialog
+	kind  kind // kBack = discard dialog, kRemove = remove-worktree dialog, kReset = reset-to-upstream dialog
 	files []string
 }
 
@@ -306,12 +307,12 @@ func (m *model) run(j job) tea.Cmd {
 	top := m.topPath(p)
 	inflight.Store(p, true)
 	inflight.Store(top, true)
-	verb := map[kind]string{kBack: "back to default", kPull: "pull", kRemove: "remove worktree"}[j.kind]
+	verb := map[kind]string{kBack: "back to default", kPull: "pull", kRemove: "remove worktree", kReset: "reset to upstream"}[j.kind]
 	return func() tea.Msg {
 		gitSem <- struct{}{}
 		defer func() { <-gitSem }()
 		var err error
-		if (j.kind == kBack && j.discard) || (j.kind == kRemove && j.force) {
+		if (j.kind == kBack && j.discard) || (j.kind == kRemove && j.force) || j.kind == kReset {
 			err = repo.CheckConfirmed(j.repo.Path, j.files)
 		}
 		switch {
@@ -320,6 +321,8 @@ func (m *model) run(j job) tea.Cmd {
 			err = repo.BackToDefault(j.repo, j.discard)
 		case j.kind == kPull:
 			err = repo.Pull(j.repo)
+		case j.kind == kReset:
+			err = repo.ResetToUpstream(j.repo)
 		case j.kind == kRemove:
 			err = repo.RemoveWorktree(j.repo, j.force)
 		}

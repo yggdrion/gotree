@@ -45,6 +45,20 @@ func BackToDefault(r *Repo, discard bool) error {
 	return pullFF(r.Path)
 }
 
+// ResetToUpstream hard-resets the current branch to its upstream; untracked files are kept.
+func ResetToUpstream(r *Repo) error {
+	if r.Status.Upstream == "" {
+		return errors.New("no upstream")
+	}
+	if r.Status.Gone {
+		return errors.New("upstream gone")
+	}
+	if _, err := git(r.Path, "reset", "--hard", "@{upstream}"); err != nil {
+		return fmt.Errorf("reset: %s", firstLine(err))
+	}
+	return nil
+}
+
 // CheckConfirmed refuses a destructive action if files appeared that the dialog never listed.
 func CheckConfirmed(path string, confirmed []string) error {
 	ok := map[string]bool{}
