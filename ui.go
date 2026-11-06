@@ -10,6 +10,12 @@ import (
 
 const workers = 8
 
+// gitSem caps concurrent git work across pools and actions.
+var gitSem = make(chan struct{}, workers)
+
+// inflight marks paths with a running action so fetch workers can skip them (read off the Update goroutine).
+var inflight sync.Map
+
 type kind int
 
 const (
@@ -38,15 +44,16 @@ type (
 		path string
 		err  error
 		r    *Repo
+		skip bool // busy, no git call made
 	}
 	reloadedMsg struct {
 		path string
 		r    *Repo
 	}
 	actionDoneMsg struct {
-		path, verb string
-		err        error
-		r          *Repo // freshly loaded top-level repo that contains path
+		path, top, verb string
+		err             error
+		r               *Repo // freshly loaded top-level repo that contains path
 	}
 )
 
@@ -96,7 +103,10 @@ func runPool(paths []string, fn func(string) tea.Msg, out chan<- tea.Msg) {
 		go func() {
 			defer wg.Done()
 			for p := range ch {
-				out <- fn(p)
+				gitSem <- struct{}{}
+				msg := fn(p)
+				<-gitSem
+				out <- msg
 			}
 		}()
 	}
@@ -151,14 +161,27 @@ func (m *model) replace(nr *Repo) {
 	}
 }
 
+// drop removes a top-level row that is no longer a repo, and its selection/busy/error state.
+func (m *model) drop(path string) {
+	for i, r := range m.repos {
+		if samePath(r.Path, path) {
+			m.repos = append(m.repos[:i:i], m.repos[i+1:]...)
+			delete(m.sel, r.Path)
+			delete(m.busy, r.Path)
+			delete(m.errs, r.Path)
+			return
+		}
+	}
+}
+
 // topPath is the path of the top-level repo holding row path p.
 func (m *model) topPath(p string) string {
 	for _, r := range m.repos {
-		if r.Path == p {
-			return p
+		if samePath(r.Path, p) {
+			return r.Path
 		}
 		for _, w := range r.Worktrees {
-			if w.Path == p {
+			if samePath(w.Path, p) {
 				return r.Path
 			}
 		}
@@ -226,8 +249,11 @@ func (m *model) startFetch() {
 	m.fetchDone, m.fetchTotal = 0, len(paths)
 	out := m.out
 	go runPool(paths, func(p string) tea.Msg {
+		if _, busy := inflight.Load(p); busy {
+			return fetchedMsg{path: p, skip: true}
+		}
 		err := Fetch(p)
-		return fetchedMsg{p, err, LoadRepo(p)}
+		return fetchedMsg{path: p, err: err, r: LoadRepo(p)}
 	}, out)
 }
 
@@ -245,8 +271,12 @@ func (m *model) run(j job) tea.Cmd {
 	m.busy[p] = true
 	delete(m.errs, p)
 	top := m.topPath(p)
+	inflight.Store(p, true)
+	inflight.Store(top, true)
 	verb := map[kind]string{kBack: "back to default", kPull: "pull", kRemove: "remove worktree"}[j.kind]
 	return func() tea.Msg {
+		gitSem <- struct{}{}
+		defer func() { <-gitSem }()
 		var err error
 		switch j.kind {
 		case kBack:
@@ -256,7 +286,7 @@ func (m *model) run(j job) tea.Cmd {
 		case kRemove:
 			err = RemoveWorktree(j.repo, j.force)
 		}
-		return actionDoneMsg{p, verb, err, LoadRepo(top)}
+		return actionDoneMsg{p, top, verb, err, LoadRepo(top)}
 	}
 }
 
@@ -311,10 +341,11 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		return listen(m.out)
 	case fetchedMsg:
 		m.fetchDone++
-		if msg.err != nil {
+		if msg.skip {
+			return listen(m.out)
+		}
+		if _, had := m.errs[msg.path]; msg.err != nil && !had { // keep an earlier action error visible
 			m.errs[msg.path] = firstLine(msg.err)
-		} else {
-			delete(m.errs, msg.path)
 		}
 		if !m.busy[msg.path] {
 			m.replace(msg.r)
@@ -322,7 +353,11 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		return listen(m.out)
 	case reloadedMsg:
 		if !m.busy[msg.path] {
-			m.replace(msg.r)
+			if msg.r == nil {
+				m.drop(msg.path)
+			} else {
+				m.replace(msg.r)
+			}
 		}
 		if m.reloadDone++; m.reloadDone >= m.reloadLeft {
 			SortRepos(m.repos)
@@ -331,7 +366,13 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		return listen(m.out)
 	case actionDoneMsg:
 		delete(m.busy, msg.path)
-		m.replace(msg.r)
+		inflight.Delete(msg.path)
+		inflight.Delete(msg.top)
+		if msg.r == nil {
+			m.drop(msg.top)
+		} else {
+			m.replace(msg.r)
+		}
 		if msg.err != nil {
 			m.errs[msg.path] = msg.err.Error()
 			m.setStatus(false, "%s: %s", msg.verb, msg.err)
@@ -452,8 +493,8 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 	case "d":
 		if !cur.IsWorktree {
 			m.setStatus(false, "d: only on worktree rows")
-		} else if m.busy[cur.Path] {
-			m.setStatus(false, "%s is busy", cur.Name)
+		} else if m.busy[cur.Path] || m.busy[m.topPath(cur.Path)] {
+			m.setStatus(false, "busy")
 		} else {
 			m.queue = append(m.queue, confirm{cur, kRemove, cur.Status.Files})
 		}
@@ -486,6 +527,9 @@ func (m *model) dispatch(k kind) tea.Cmd {
 		}
 	}
 	if len(targets) == 0 {
+		if note == "" {
+			note = "nothing to do"
+		}
 		m.setStatus(false, "%s", note)
 		return nil
 	}
