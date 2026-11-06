@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/yggdrion/gotree/internal/repo"
 )
 
@@ -204,9 +205,7 @@ func (m model) render() string {
 	b = append(b, m.header())
 	b = append(b, sty(grey, false).Bold(true).Render(pad("   "+pad("REPO", c.name)+"  "+pad("BRANCH", c.branch)+"  "+pad("STATE", c.state)+"  UPDATED", w)))
 	var body []string
-	if m.menu != nil {
-		body = m.menuLines()
-	} else if m.help {
+	if m.help && m.menu == nil {
 		body = helpLines
 	} else {
 		now := time.Now()
@@ -217,6 +216,9 @@ func (m model) render() string {
 	}
 	for len(body) < m.listH() && m.h > 0 {
 		body = append(body, "")
+	}
+	if m.menu != nil {
+		body = overlay(body, m.menuBox(w), w)
 	}
 	b = append(b, body...)
 	b = append(b, sty(grey, false).Render(strings.Repeat("─", w)))
@@ -240,4 +242,36 @@ func (m model) render() string {
 	}
 	b = append(b, sty(grey, false).Render(trunc(footer, w)))
 	return strings.Join(b, "\n")
+}
+
+// menuBox renders the menu as a bordered box, at most maxW wide.
+func (m model) menuBox(maxW int) []string {
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(purple)).
+		Padding(0, 1).
+		MaxWidth(maxW).
+		Render(strings.Join(m.menuLines(), "\n"))
+	return strings.Split(box, "\n")
+}
+
+// overlay draws box centered over base, keeping base visible around it.
+func overlay(base, box []string, w int) []string {
+	bw := 0
+	for _, l := range box {
+		bw = max(bw, lipgloss.Width(l))
+	}
+	x := max(0, (w-bw)/2)
+	y := max(0, (len(base)-len(box))/2)
+	out := append([]string(nil), base...)
+	for len(out) < y+len(box) {
+		out = append(out, "")
+	}
+	for i, l := range box {
+		bg := out[y+i]
+		left := ansi.Truncate(bg, x, "")
+		left += strings.Repeat(" ", max(0, x-lipgloss.Width(left)))
+		out[y+i] = left + l + ansi.TruncateLeft(bg, x+lipgloss.Width(l), "")
+	}
+	return out
 }
