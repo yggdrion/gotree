@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/yggdrion/gotree/internal/repo"
 )
 
 const workers = 8
@@ -27,42 +28,42 @@ const (
 
 type job struct {
 	kind    kind
-	repo    *Repo
+	repo    *repo.Repo
 	discard bool     // kBack: reset+clean first
 	force   bool     // kRemove: --force
 	files   []string // files the confirm dialog listed (destructive jobs)
 }
 
 type confirm struct {
-	repo  *Repo
+	repo  *repo.Repo
 	kind  kind // kBack = discard dialog, kRemove = remove-worktree dialog
 	files []string
 }
 
 type (
-	repoLoadedMsg struct{ r *Repo }
+	repoLoadedMsg struct{ r *repo.Repo }
 	loadDoneMsg   struct{}
 	fetchedMsg    struct {
 		path string
 		err  error
-		r    *Repo
+		r    *repo.Repo
 		skip bool // busy, no git call made
 	}
 	reloadedMsg struct {
 		path string
-		r    *Repo
+		r    *repo.Repo
 	}
 	actionDoneMsg struct {
 		path, top, verb string
 		err             error
-		r               *Repo // freshly loaded top-level repo that contains path
+		r               *repo.Repo // freshly loaded top-level repo that contains path
 	}
 )
 
 type model struct {
 	root     string
 	paths    []string
-	repos    []*Repo
+	repos    []*repo.Repo
 	cursor   string // path of the cursor row
 	idx, off int
 	w, h     int
@@ -76,6 +77,7 @@ type model struct {
 	filter   textinput.Model
 	filterOn bool // filter input has focus
 	help     bool
+	menu     *menuState
 	chosen   string
 	out      chan tea.Msg
 
@@ -88,7 +90,7 @@ func newModel(root string) model {
 	ti := textinput.New()
 	ti.Prompt = "/ "
 	return model{
-		root: root, paths: QuickOrder(root), loading: true, filter: ti,
+		root: root, paths: repo.QuickOrder(root), loading: true, filter: ti,
 		busy: map[string]bool{}, sel: map[string]bool{}, errs: map[string]string{},
 		out: make(chan tea.Msg, 64),
 	}
@@ -123,14 +125,14 @@ func listen(out <-chan tea.Msg) tea.Cmd { return func() tea.Msg { return <-out }
 
 func (m model) Init() tea.Cmd {
 	go func() {
-		runPool(m.paths, func(p string) tea.Msg { return repoLoadedMsg{LoadRepo(p)} }, m.out)
+		runPool(m.paths, func(p string) tea.Msg { return repoLoadedMsg{repo.LoadRepo(p)} }, m.out)
 		m.out <- loadDoneMsg{}
 	}()
 	return listen(m.out)
 }
 
 // planBatch splits targets into clean ones and ones with uncommitted files, keeping order.
-func planBatch(targets []*Repo) (clean, dirty []*Repo) {
+func planBatch(targets []*repo.Repo) (clean, dirty []*repo.Repo) {
 	for _, r := range targets {
 		if len(r.Status.Files) > 0 {
 			dirty = append(dirty, r)
@@ -142,18 +144,18 @@ func planBatch(targets []*Repo) (clean, dirty []*Repo) {
 }
 
 // replace swaps in a freshly loaded repo, keeping fold state of it and its worktrees.
-func (m *model) replace(nr *Repo) {
+func (m *model) replace(nr *repo.Repo) {
 	if nr == nil {
 		return
 	}
 	for i, old := range m.repos {
-		if !samePath(old.Path, nr.Path) {
+		if !repo.SamePath(old.Path, nr.Path) {
 			continue
 		}
 		nr.Expanded = old.Expanded
 		for _, w := range nr.Worktrees {
 			for _, ow := range old.Worktrees {
-				if samePath(ow.Path, w.Path) {
+				if repo.SamePath(ow.Path, w.Path) {
 					w.Expanded = ow.Expanded
 				}
 			}
@@ -169,9 +171,9 @@ func (m *model) replace(nr *Repo) {
 	}
 }
 
-func hasPath(r *Repo, p string) bool {
+func hasPath(r *repo.Repo, p string) bool {
 	for _, w := range r.Worktrees {
-		if samePath(w.Path, p) {
+		if repo.SamePath(w.Path, p) {
 			return true
 		}
 	}
@@ -195,7 +197,7 @@ func (m *model) cursorError() string {
 // drop removes a top-level row that is no longer a repo, and its selection/busy/error state.
 func (m *model) drop(path string) {
 	for i, r := range m.repos {
-		if samePath(r.Path, path) {
+		if repo.SamePath(r.Path, path) {
 			m.repos = append(m.repos[:i:i], m.repos[i+1:]...)
 			delete(m.sel, r.Path)
 			delete(m.busy, r.Path)
@@ -208,11 +210,11 @@ func (m *model) drop(path string) {
 // topPath is the path of the top-level repo holding row path p.
 func (m *model) topPath(p string) string {
 	for _, r := range m.repos {
-		if samePath(r.Path, p) {
+		if repo.SamePath(r.Path, p) {
 			return r.Path
 		}
 		for _, w := range r.Worktrees {
-			if samePath(w.Path, p) {
+			if repo.SamePath(w.Path, p) {
 				return r.Path
 			}
 		}
@@ -220,8 +222,8 @@ func (m *model) topPath(p string) string {
 	return p
 }
 
-func (m *model) all() []*Repo {
-	var out []*Repo
+func (m *model) all() []*repo.Repo {
+	var out []*repo.Repo
 	for _, r := range m.repos {
 		out = append(out, r)
 		out = append(out, r.Worktrees...)
@@ -283,8 +285,8 @@ func (m *model) startFetch() {
 		if _, busy := inflight.Load(p); busy {
 			return fetchedMsg{path: p, skip: true}
 		}
-		err := Fetch(p)
-		return fetchedMsg{path: p, err: err, r: LoadRepo(p)}
+		err := repo.Fetch(p)
+		return fetchedMsg{path: p, err: err, r: repo.LoadRepo(p)}
 	}, out)
 }
 
@@ -294,7 +296,7 @@ func (m *model) startReload() {
 		paths[i] = r.Path
 	}
 	m.reloadDone, m.reloadLeft = 0, len(paths)
-	go runPool(paths, func(p string) tea.Msg { return reloadedMsg{p, LoadRepo(p)} }, m.out)
+	go runPool(paths, func(p string) tea.Msg { return reloadedMsg{p, repo.LoadRepo(p)} }, m.out)
 }
 
 func (m *model) run(j job) tea.Cmd {
@@ -310,18 +312,18 @@ func (m *model) run(j job) tea.Cmd {
 		defer func() { <-gitSem }()
 		var err error
 		if (j.kind == kBack && j.discard) || (j.kind == kRemove && j.force) {
-			err = checkConfirmed(j.repo.Path, j.files)
+			err = repo.CheckConfirmed(j.repo.Path, j.files)
 		}
 		switch {
 		case err != nil:
 		case j.kind == kBack:
-			err = BackToDefault(j.repo, j.discard)
+			err = repo.BackToDefault(j.repo, j.discard)
 		case j.kind == kPull:
-			err = Pull(j.repo)
+			err = repo.Pull(j.repo)
 		case j.kind == kRemove:
-			err = RemoveWorktree(j.repo, j.force)
+			err = repo.RemoveWorktree(j.repo, j.force)
 		}
-		return actionDoneMsg{p, top, verb, err, LoadRepo(top)}
+		return actionDoneMsg{p, top, verb, err, repo.LoadRepo(top)}
 	}
 }
 
@@ -338,8 +340,8 @@ func (m *model) advance() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m *model) targets() []*Repo {
-	var out []*Repo
+func (m *model) targets() []*repo.Repo {
+	var out []*repo.Repo
 	for _, r := range m.all() {
 		if m.sel[r.Path] {
 			out = append(out, r)
@@ -349,7 +351,7 @@ func (m *model) targets() []*Repo {
 		return out
 	}
 	if rs := m.rows(); len(rs) > 0 {
-		return []*Repo{rs[m.idx].Repo}
+		return []*repo.Repo{rs[m.idx].Repo}
 	}
 	return nil
 }
@@ -366,12 +368,12 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		m.w, m.h = msg.Width, msg.Height
 	case repoLoadedMsg:
 		if msg.r != nil {
-			m.repos = Dedupe(append(m.repos, msg.r))
+			m.repos = repo.Dedupe(append(m.repos, msg.r))
 		}
 		return listen(m.out)
 	case loadDoneMsg:
 		m.loading = false
-		SortRepos(m.repos)
+		repo.SortRepos(m.repos)
 		m.startFetch()
 		return listen(m.out)
 	case fetchedMsg:
@@ -400,7 +402,7 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 			}
 		}
 		if m.reloadDone++; m.reloadDone >= m.reloadLeft {
-			SortRepos(m.repos)
+			repo.SortRepos(m.repos)
 			m.reloadLeft = 0
 		}
 		return listen(m.out)
@@ -444,6 +446,9 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 		}
 		return m.advance()
 	}
+	if m.menu != nil {
+		return m.menuKey(s)
+	}
 	if m.filterOn {
 		switch s {
 		case "esc":
@@ -461,7 +466,7 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	rs := m.rows()
-	var cur *Repo
+	var cur *repo.Repo
 	if len(rs) > 0 {
 		cur = rs[m.idx].Repo
 	}
@@ -501,20 +506,13 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	switch s {
 	case "enter":
-		m.chosen = cur.Path
-		return tea.Quit
-	case "c":
-		if err := OpenEditor(cur.Path); err != nil {
-			m.setStatus(false, "%s", err)
-		} else {
-			m.setStatus(true, "opened %s in VS Code", cur.Name)
-		}
+		m.openMenu(cur)
 	case "x":
-		if m.sel[cur.Path] {
-			delete(m.sel, cur.Path)
-		} else {
-			m.sel[cur.Path] = true
-		}
+		return m.cd(cur)
+	case "c":
+		m.openEditor(cur)
+	case " ":
+		m.toggleSel(cur)
 	case "right", "l":
 		if !rs[m.idx].Child && len(cur.Worktrees) > 0 {
 			cur.Expanded = true
@@ -531,13 +529,7 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 			cur.Expanded = false
 		}
 	case "d":
-		if !cur.IsWorktree {
-			m.setStatus(false, "d: only on worktree rows")
-		} else if m.busy[cur.Path] || m.busy[m.topPath(cur.Path)] {
-			m.setStatus(false, "busy")
-		} else {
-			m.queue = append(m.queue, confirm{cur, kRemove, cur.Status.Files})
-		}
+		m.removeWT(cur)
 	case "b":
 		return m.dispatch(kBack)
 	case "p":
@@ -548,7 +540,7 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 
 // dispatch handles b and p on the selection (or cursor row); refusals only set the status line.
 func (m *model) dispatch(k kind) tea.Cmd {
-	var targets []*Repo
+	var targets []*repo.Repo
 	var note string
 	for _, r := range m.targets() {
 		switch {
@@ -594,3 +586,15 @@ func (m *model) dispatch(k kind) tea.Cmd {
 }
 
 func (m model) fetching() bool { return m.fetchDone < m.fetchTotal }
+
+// Run starts the TUI on root and returns the chosen path ("" if none).
+func Run(root string) (string, error) {
+	final, err := tea.NewProgram(newModel(root), tea.WithAltScreen()).Run()
+	if err != nil {
+		return "", err
+	}
+	if m, ok := final.(model); ok {
+		return m.Chosen(), nil
+	}
+	return "", nil
+}

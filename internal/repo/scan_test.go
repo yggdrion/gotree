@@ -1,4 +1,4 @@
-package main
+package repo
 
 import (
 	"os"
@@ -44,7 +44,7 @@ func TestLoadRepoWorktrees(t *testing.T) {
 		t.Fatalf("unexpected: %+v", r)
 	}
 	w := r.Worktrees[0]
-	if w.Status.Branch != "claude/wt1" || !w.IsWorktree || !samePath(w.MainPath, clone) || w.Name != "wt1" || w.CommonDir != r.CommonDir {
+	if w.Status.Branch != "claude/wt1" || !w.IsWorktree || !SamePath(w.MainPath, clone) || w.Name != "wt1" || w.CommonDir != r.CommonDir {
 		t.Fatalf("unexpected worktree: %+v", w)
 	}
 }
@@ -67,7 +67,7 @@ func TestDedupeLinkedWorktree(t *testing.T) {
 	side := filepath.Join(t.TempDir(), "side")
 	gitT(t, clone, "worktree", "add", side)
 	main, linked := LoadRepo(clone), LoadRepo(side)
-	if main == nil || linked == nil || !linked.IsWorktree || !samePath(linked.MainPath, clone) {
+	if main == nil || linked == nil || !linked.IsWorktree || !SamePath(linked.MainPath, clone) {
 		t.Fatalf("load: %+v %+v", main, linked)
 	}
 	got := Dedupe([]*Repo{linked, main})

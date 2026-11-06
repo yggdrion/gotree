@@ -1,4 +1,4 @@
-package main
+package repo
 
 import (
 	"os"
@@ -19,9 +19,9 @@ type Repo struct {
 	Expanded   bool    // UI fold state, default false
 }
 
-// samePath compares paths after normPath and symlink resolution (macOS /var vs /private/var);
+// SamePath compares paths after normPath and symlink resolution (macOS /var vs /private/var);
 // case-insensitive on Windows.
-func samePath(a, b string) bool {
+func SamePath(a, b string) bool {
 	res := func(p string) string {
 		p = normPath(p)
 		if r, err := filepath.EvalSymlinks(p); err == nil {
@@ -72,7 +72,7 @@ func QuickOrder(root string) []string {
 // LoadRepo returns nil unless path is the toplevel of a non-bare repo.
 func LoadRepo(path string) *Repo {
 	top, err := git(path, "rev-parse", "--show-toplevel")
-	if err != nil || !samePath(top, path) {
+	if err != nil || !SamePath(top, path) {
 		return nil
 	}
 	common, err := git(path, "rev-parse", "--path-format=absolute", "--git-common-dir")
@@ -126,7 +126,7 @@ func Dedupe(rs []*Repo) []*Repo {
 
 func hasMain(rs []*Repo, commonDir string) bool {
 	for _, m := range rs {
-		if !m.IsWorktree && samePath(m.CommonDir, commonDir) {
+		if !m.IsWorktree && SamePath(m.CommonDir, commonDir) {
 			return true
 		}
 	}

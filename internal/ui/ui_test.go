@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"errors"
@@ -8,14 +8,15 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/yggdrion/gotree/internal/repo"
 )
 
 func TestPlanBatch(t *testing.T) {
-	a := &Repo{Name: "a"}
-	b := &Repo{Name: "b", Status: Status{Files: []string{"x"}}}
-	c := &Repo{Name: "c"}
-	d := &Repo{Name: "d", Status: Status{Files: []string{"y", "z"}}}
-	clean, dirty := planBatch([]*Repo{a, b, c, d})
+	a := &repo.Repo{Name: "a"}
+	b := &repo.Repo{Name: "b", Status: repo.Status{Files: []string{"x"}}}
+	c := &repo.Repo{Name: "c"}
+	d := &repo.Repo{Name: "d", Status: repo.Status{Files: []string{"y", "z"}}}
+	clean, dirty := planBatch([]*repo.Repo{a, b, c, d})
 	if len(clean) != 2 || clean[0] != a || clean[1] != c {
 		t.Errorf("clean = %v", clean)
 	}
@@ -26,9 +27,9 @@ func TestPlanBatch(t *testing.T) {
 
 func TestActionDropsVanishedTopLevel(t *testing.T) {
 	m := newModel(t.TempDir())
-	wt := &Repo{Path: t.TempDir(), Name: "wt", IsWorktree: true}
-	keep := &Repo{Path: t.TempDir(), Name: "keep"}
-	m.repos = []*Repo{wt, keep}
+	wt := &repo.Repo{Path: t.TempDir(), Name: "wt", IsWorktree: true}
+	keep := &repo.Repo{Path: t.TempDir(), Name: "keep"}
+	m.repos = []*repo.Repo{wt, keep}
 	m.busy[wt.Path] = true
 	m.sel[wt.Path] = true
 	m.update(actionDoneMsg{path: wt.Path, top: wt.Path, verb: "remove worktree"})
@@ -37,13 +38,13 @@ func TestActionDropsVanishedTopLevel(t *testing.T) {
 	}
 }
 
-func dirtyRepo(n string) *Repo {
-	return &Repo{Path: n, Name: n, Status: Status{Files: []string{"f"}, Default: "main"}}
+func dirtyRepo(n string) *repo.Repo {
+	return &repo.Repo{Path: n, Name: n, Status: repo.Status{Files: []string{"f"}, Default: "main"}}
 }
 
-func queued() (model, *Repo, *Repo, *Repo) {
+func queued() (model, *repo.Repo, *repo.Repo, *repo.Repo) {
 	m := newModel("")
-	c, d1, d2 := &Repo{Path: "clean", Name: "clean"}, dirtyRepo("d1"), dirtyRepo("d2")
+	c, d1, d2 := &repo.Repo{Path: "clean", Name: "clean"}, dirtyRepo("d1"), dirtyRepo("d2")
 	m.queue = []confirm{{d1, kBack, d1.Status.Files}, {d2, kBack, d2.Status.Files}}
 	m.pending = []job{{kind: kBack, repo: c}}
 	return m, c, d1, d2
@@ -99,7 +100,7 @@ func TestFetchErrorClearsButActionErrorSurvives(t *testing.T) {
 
 func TestCursorErrorFull(t *testing.T) {
 	m := newModel("")
-	m.repos = []*Repo{{Path: "a", Name: "a"}}
+	m.repos = []*repo.Repo{{Path: "a", Name: "a"}}
 	m.cursor = "a"
 	m.errs["a"] = "fetch: fatal: x\nhint: y"
 	if got := m.cursorError(); got != "fetch: fatal: x · hint: y" {
@@ -115,10 +116,10 @@ func TestCursorErrorFull(t *testing.T) {
 func TestDiscardAbortsWhenFilesChangedSinceConfirm(t *testing.T) {
 	_, clone := newFixture(t)
 	mustWrite(t, filepath.Join(clone, "old.txt"), "x")
-	r := LoadRepo(clone)
+	r := repo.LoadRepo(clone)
 	mustWrite(t, filepath.Join(clone, "new.txt"), "precious")
 	m := newModel("")
-	m.repos = []*Repo{r}
+	m.repos = []*repo.Repo{r}
 	msg := m.run(job{kind: kBack, repo: r, discard: true, files: []string{"old.txt"}})().(actionDoneMsg)
 	if msg.err == nil || !strings.Contains(msg.err.Error(), "changed since confirm") {
 		t.Fatalf("err = %v", msg.err)
@@ -130,18 +131,62 @@ func TestDiscardAbortsWhenFilesChangedSinceConfirm(t *testing.T) {
 
 func TestStaleSelectionFallsBackToCursor(t *testing.T) {
 	m := newModel("")
-	keep := &Repo{Path: "keep", Name: "keep"}
-	m.repos = []*Repo{keep}
+	keep := &repo.Repo{Path: "keep", Name: "keep"}
+	m.repos = []*repo.Repo{keep}
 	m.sel["gone"] = true
 	if tg := m.targets(); len(tg) != 1 || tg[0] != keep {
 		t.Errorf("targets = %v", tg)
 	}
-	wt := &Repo{Path: "wt", Name: "wt", IsWorktree: true}
-	top := &Repo{Path: "top", Name: "top", Worktrees: []*Repo{wt}}
-	m.repos = []*Repo{top}
+	wt := &repo.Repo{Path: "wt", Name: "wt", IsWorktree: true}
+	top := &repo.Repo{Path: "top", Name: "top", Worktrees: []*repo.Repo{wt}}
+	m.repos = []*repo.Repo{top}
 	m.sel["wt"] = true
-	m.replace(&Repo{Path: "top", Name: "top"})
+	m.replace(&repo.Repo{Path: "top", Name: "top"})
 	if m.sel["wt"] {
 		t.Error("stale selection kept")
+	}
+}
+
+func key(s string) tea.KeyMsg {
+	if s == "enter" {
+		return tea.KeyMsg{Type: tea.KeyEnter}
+	}
+	if s == "esc" {
+		return tea.KeyMsg{Type: tea.KeyEsc}
+	}
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+}
+
+func TestEnterMenu(t *testing.T) {
+	m := newModel("")
+	r := &repo.Repo{Path: "r", Name: "r", Status: repo.Status{Branch: "main", Default: "main"}}
+	m.repos = []*repo.Repo{r}
+	m.fix()
+	m.key(key("enter"))
+	if m.menu == nil || m.chosen != "" {
+		t.Fatal("enter should open menu without choosing")
+	}
+	if !strings.Contains(strings.Join(m.menuLines(), "\n"), "branch") {
+		t.Error("menu lacks repo state")
+	}
+	m.key(key("esc"))
+	if m.menu != nil {
+		t.Fatal("esc should close menu")
+	}
+	m.key(key(" "))
+	if !m.sel["r"] {
+		t.Error("space should select")
+	}
+	m.key(key("enter"))
+	m.key(key("enter")) // first item = cd
+	if m.chosen != "r" {
+		t.Errorf("chosen = %q", m.chosen)
+	}
+	m = newModel("")
+	m.repos = []*repo.Repo{r}
+	m.fix()
+	m.key(key("x"))
+	if m.chosen != "r" {
+		t.Error("x should cd")
 	}
 }
