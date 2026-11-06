@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -17,8 +19,36 @@ func gitEnv() []string {
 
 // git runs `git -C dir args...`; stdout is right-trimmed, errors carry stderr text.
 func git(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = gitEnv()
+	return run(exec.Command("git", append([]string{"-C", dir}, args...)...))
+}
+
+// netTimeout bounds network git calls (var so tests can shorten it).
+var netTimeout = 2 * time.Minute
+
+// gitNet is git for network ops: bounded by netTimeout and ssh never prompts on the tty.
+func gitNet(dir string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), netTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	cmd.WaitDelay = time.Second // don't wait on ssh children holding the pipes
+	_, set1 := os.LookupEnv("GIT_SSH_COMMAND")
+	_, set2 := os.LookupEnv("GIT_SSH")
+	if !set1 && !set2 {
+		if c, _ := git(dir, "config", "--get", "core.sshCommand"); c == "" {
+			cmd.Env = append(gitEnv(), "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+		}
+	}
+	out, err := run(cmd)
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", &gitError{"timed out after " + netTimeout.String()}
+	}
+	return out, err
+}
+
+func run(cmd *exec.Cmd) (string, error) {
+	if cmd.Env == nil {
+		cmd.Env = gitEnv()
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {

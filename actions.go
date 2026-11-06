@@ -13,7 +13,7 @@ func firstLine(err error) string {
 }
 
 func pullFF(path string) error {
-	if _, err := git(path, "pull", "--ff-only"); err != nil {
+	if _, err := gitNet(path, "pull", "--ff-only"); err != nil {
 		low := strings.ToLower(err.Error())
 		if strings.Contains(low, "not possible to fast-forward") || strings.Contains(low, "diverg") {
 			return errors.New("pull: not fast-forward")
@@ -45,6 +45,20 @@ func BackToDefault(r *Repo, discard bool) error {
 	return pullFF(r.Path)
 }
 
+// checkConfirmed refuses a destructive action if files appeared that the dialog never listed.
+func checkConfirmed(path string, confirmed []string) error {
+	ok := map[string]bool{}
+	for _, f := range confirmed {
+		ok[f] = true
+	}
+	for _, f := range ReadStatus(path).Files {
+		if !ok[f] {
+			return errors.New("changed since confirm, press r")
+		}
+	}
+	return nil
+}
+
 func Pull(r *Repo) error {
 	if r.Status.Upstream == "" {
 		return errors.New("no upstream")
@@ -56,14 +70,14 @@ func Pull(r *Repo) error {
 }
 
 func Fetch(path string) error {
-	if _, err := git(path, "fetch", "--all", "--prune"); err != nil {
-		return fmt.Errorf("fetch: %s", firstLine(err))
+	if _, err := gitNet(path, "fetch", "--all", "--prune"); err != nil {
+		return fmt.Errorf("fetch: %s", err)
 	}
 	if _, err := git(path, "symbolic-ref", "refs/remotes/origin/HEAD"); err != nil {
 		if out, err := git(path, "remote"); err == nil {
 			for _, l := range strings.Split(out, "\n") {
 				if strings.TrimSpace(l) == "origin" {
-					git(path, "remote", "set-head", "origin", "--auto") // error ignored
+					gitNet(path, "remote", "set-head", "origin", "--auto") // error ignored
 					break
 				}
 			}
@@ -94,4 +108,9 @@ func OpenEditor(path string) error {
 	}
 	go cmd.Wait() // reap
 	return nil
+}
+
+func firstLineOf(s string) string {
+	l, _, _ := strings.Cut(s, "\n")
+	return strings.TrimSpace(l)
 }

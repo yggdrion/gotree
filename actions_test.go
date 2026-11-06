@@ -2,8 +2,10 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func write(t *testing.T, path, s string) {
@@ -131,5 +133,21 @@ func TestRemoveWorktreeKeepsBranch(t *testing.T) {
 	}
 	if gitT(t, clone, "branch", "--list", "claude/wt1") == "" {
 		t.Fatal("branch deleted")
+	}
+}
+
+func TestFetchTimesOut(t *testing.T) {
+	if _, err := exec.LookPath("ssh"); err != nil {
+		t.Skip("no ssh")
+	}
+	_, clone := newFixture(t)
+	old := netTimeout
+	netTimeout = time.Second
+	defer func() { netTimeout = old }()
+	gitT(t, clone, "remote", "set-url", "origin", "ssh://git@10.255.255.1/x.git")
+	start := time.Now()
+	err := Fetch(clone)
+	if err == nil || time.Since(start) > 5*time.Second {
+		t.Fatalf("err=%v after %v", err, time.Since(start))
 	}
 }
