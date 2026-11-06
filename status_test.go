@@ -71,3 +71,11 @@ func TestReadStatusEmptyRepo(t *testing.T) {
 		t.Fatalf("unexpected: %+v", s)
 	}
 }
+
+func TestReadStatusUnquotesPaths(t *testing.T) {
+	_, clone := newFixture(t)
+	os.WriteFile(filepath.Join(clone, "über.txt"), []byte("x"), 0o644)
+	if s := ReadStatus(clone); !reflect.DeepEqual(s.Files, []string{"über.txt"}) {
+		t.Fatalf("files = %q", s.Files)
+	}
+}

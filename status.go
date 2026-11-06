@@ -24,7 +24,7 @@ type Status struct {
 // ReadStatus never panics; git errors land in Err and partial state is kept.
 func ReadStatus(path string) Status {
 	var s Status
-	out, err := git(path, "status", "--porcelain=v2", "--branch")
+	out, err := git(path, "-c", "core.quotePath=false", "status", "--porcelain=v2", "--branch")
 	if err != nil {
 		s.Err, _, _ = strings.Cut(err.Error(), "\n")
 		return s
