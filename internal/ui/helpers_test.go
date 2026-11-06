@@ -57,15 +57,6 @@ func newFixture(t *testing.T) (remote, clone string) {
 	return remote, clone
 }
 
-// cloneOf makes an extra clone of remote (for pushing from "another machine").
-func cloneOf(t *testing.T, remote string) string {
-	t.Helper()
-	isolateGit(t)
-	dir := filepath.Join(t.TempDir(), "other")
-	gitT(t, filepath.Dir(dir), "clone", remote, dir)
-	return dir
-}
-
 func mustWrite(t *testing.T, path, data string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
