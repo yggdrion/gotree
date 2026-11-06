@@ -26,7 +26,7 @@ func ReadStatus(path string) Status {
 	var s Status
 	out, err := git(path, "status", "--porcelain=v2", "--branch")
 	if err != nil {
-		s.Err = err.Error()
+		s.Err, _, _ = strings.Cut(err.Error(), "\n")
 		return s
 	}
 	b := parseStatusV2(out)
@@ -40,7 +40,7 @@ func ReadStatus(path string) Status {
 	if ref, err := git(path, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil {
 		s.Default = parseDefaultBranch(ref)
 	}
-	if s.Default != "" && s.Branch != s.Default {
+	if s.Default != "" && !s.Detached && s.Branch != s.Default {
 		// non-zero exit (not ancestor, or no such ref) just means not merged
 		if _, err := git(path, "merge-base", "--is-ancestor", "HEAD", "origin/"+s.Default); err == nil {
 			s.Merged = true

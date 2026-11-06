@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -8,15 +9,16 @@ import (
 	"testing"
 )
 
-// gitT runs git in dir with the process env; fails the test with stdout+stderr on error.
+// gitT runs git in dir with the process env; returns trimmed stdout; fails the test with stderr+stdout on error.
 func gitT(t *testing.T, dir string, args ...string) string {
-	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git %s: %v\n%s%s", strings.Join(args, " "), err, stderr.String(), stdout.String())
 	}
-	return strings.TrimSpace(string(out))
+	return strings.TrimSpace(stdout.String())
 }
 
 // isolateGit keeps the user's and system git config out of tests.
@@ -58,6 +60,7 @@ func newFixture(t *testing.T) (remote, clone string) {
 // cloneOf makes an extra clone of remote (for pushing from "another machine").
 func cloneOf(t *testing.T, remote string) string {
 	t.Helper()
+	isolateGit(t)
 	dir := filepath.Join(t.TempDir(), "other")
 	gitT(t, filepath.Dir(dir), "clone", remote, dir)
 	return dir

@@ -10,7 +10,7 @@ import (
 func TestReadStatusClean(t *testing.T) {
 	_, clone := newFixture(t)
 	s := ReadStatus(clone)
-	if s.Branch != "beta7" || s.Default != "beta7" || s.Ahead != 0 || s.Behind != 0 || len(s.Files) != 0 || s.Err != "" || s.Updated.IsZero() {
+	if s.Branch != "beta7" || s.Default != "beta7" || s.Ahead != 0 || s.Behind != 0 || len(s.Files) != 0 || s.Err != "" || s.Updated.IsZero() || s.Merged {
 		t.Fatalf("unexpected: %+v", s)
 	}
 }
@@ -20,7 +20,7 @@ func TestReadStatusAheadDirty(t *testing.T) {
 	gitT(t, clone, "commit", "--allow-empty", "-m", "local")
 	os.WriteFile(filepath.Join(clone, "new.txt"), []byte("x"), 0o644)
 	s := ReadStatus(clone)
-	if s.Ahead != 1 || !reflect.DeepEqual(s.Files, []string{"new.txt"}) {
+	if s.Ahead != 1 || s.Merged || !reflect.DeepEqual(s.Files, []string{"new.txt"}) {
 		t.Fatalf("unexpected: %+v", s)
 	}
 }
@@ -58,7 +58,7 @@ func TestReadStatusGone(t *testing.T) {
 func TestReadStatusDetached(t *testing.T) {
 	_, clone := newFixture(t)
 	gitT(t, clone, "checkout", "--detach")
-	if s := ReadStatus(clone); !s.Detached || len(s.SHA) != 7 || s.Branch != "" {
+	if s := ReadStatus(clone); !s.Detached || len(s.SHA) != 7 || s.Branch != "" || s.Merged {
 		t.Fatalf("unexpected: %+v", s)
 	}
 }
