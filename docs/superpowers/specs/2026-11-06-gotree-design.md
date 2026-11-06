@@ -21,7 +21,7 @@ in the chosen folder.
    or on all selected rows.
 4. Separate keys for plain pull and fetch (all repos).
 5. Show worktrees as child rows under their repo. Folded by default. Can be unfolded, jumped into and deleted.
-6. Enter on a repo or worktree quits and leaves the user's shell `cd`'d into that folder.
+6. Enter on a repo or worktree quits and leaves the user's shell `cd`'d into that folder. `c` opens it in VS Code instead and stays in the app.
 7. `/` filters rows by name.
 
 ## Non-goals
@@ -164,6 +164,13 @@ The TUI cannot change its parent shell's directory. So:
   ```
 - `q` / `Esc` / `Ctrl+C` quit without writing.
 
+### Open in VS Code (`c`) (user's addition)
+
+`c` on a repo or worktree row runs `code <path>` and does not quit gotree. The process is started detached
+(`cmd.Start()`, not waited on), so the TUI never blocks. Resolve `code` via `exec.LookPath`, which finds `code.cmd`
+through PATHEXT on Windows. If it is not found, the status line shows `VS Code 'code' command not found on PATH`.
+On success the status line shows `opened <name> in VS Code`.
+
 ### Filter (`/`)
 
 Typing narrows rows by case-insensitive substring on the repo name. A worktree row matches on its own
@@ -177,7 +184,7 @@ else on the cursor row. Selection clears after the action.
 
 ### Keys (shown in a footer line; `?` toggles a full help view)
 
-`↑/↓ j/k` move · `enter` cd · `b` back-to-default+pull · `p` pull · `f` fetch all · `r` refresh · `x` select ·
+`↑/↓ j/k` move · `enter` cd · `c` open in VS Code · `b` back-to-default+pull · `p` pull · `f` fetch all · `r` refresh · `x` select ·
 `→/←` fold · `d` delete worktree · `/` filter · `?` help · `q` quit
 
 ## Layout (approved mockup "A v2")
