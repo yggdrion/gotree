@@ -432,6 +432,9 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 
 func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
+	if k.Mod == tea.ModShift && k.Text == "" && k.ShiftedCode > ' ' {
+		s = string(k.ShiftedCode) // kitty keyboards report "shift+r" with no text for R
+	}
 	if s == "ctrl+c" {
 		return tea.Quit
 	}
