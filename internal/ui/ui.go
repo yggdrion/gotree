@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/yggdrion/gotree/internal/repo"
 )
 
@@ -421,13 +421,13 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		} else {
 			m.setStatus(true, "%s: done", msg.verb)
 		}
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.key(msg)
 	}
 	return nil
 }
 
-func (m *model) key(k tea.KeyMsg) tea.Cmd {
+func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
 	if s == "ctrl+c" {
 		return tea.Quit
@@ -511,7 +511,7 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 		return m.cd(cur)
 	case "c":
 		m.openEditor(cur)
-	case " ":
+	case "space":
 		m.toggleSel(cur)
 	case "right", "l":
 		if !rs[m.idx].Child && len(cur.Worktrees) > 0 {
@@ -589,7 +589,7 @@ func (m model) fetching() bool { return m.fetchDone < m.fetchTotal }
 
 // Run starts the TUI on root and returns the chosen path ("" if none).
 func Run(root string) (string, error) {
-	final, err := tea.NewProgram(newModel(root), tea.WithAltScreen()).Run()
+	final, err := tea.NewProgram(newModel(root)).Run()
 	if err != nil {
 		return "", err
 	}

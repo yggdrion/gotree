@@ -3,7 +3,7 @@ package ui
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/yggdrion/gotree/internal/repo"
 )
 
@@ -100,9 +100,6 @@ func (m *model) menuKey(s string) tea.Cmd {
 	case "enter":
 		return run(mn.items[mn.sel])
 	default:
-		if s == " " {
-			s = "space"
-		}
 		for _, it := range mn.items {
 			if it.key == s {
 				return run(it)
