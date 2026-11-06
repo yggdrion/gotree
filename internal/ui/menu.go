@@ -60,10 +60,20 @@ func whyNot(k kind, r *repo.Repo) string {
 		return "unknown default branch"
 	case k == kPull && r.Status.Upstream == "":
 		return "no upstream"
-	case k == kPull && r.Status.Gone:
+	case (k == kPull || k == kReset) && r.Status.Gone:
 		return "upstream gone"
+	case k == kReset && r.Status.Upstream == "":
+		return "no upstream"
 	}
 	return ""
+}
+
+func (m *model) resetUpstream(r *repo.Repo) {
+	if m.busy[r.Path] || m.busy[m.topPath(r.Path)] {
+		m.setStatus(false, "busy")
+		return
+	}
+	m.queue = append(m.queue, confirm{r, kReset, r.Status.Files})
 }
 
 func (m *model) openMenu(r *repo.Repo) {
@@ -72,6 +82,7 @@ func (m *model) openMenu(r *repo.Repo) {
 		{key: "c", label: "open in VS Code", run: func() tea.Cmd { m.openEditor(r); return nil }},
 		{key: "b", label: "back to default branch + pull", why: whyNot(kBack, r), run: func() tea.Cmd { return m.dispatch(kBack) }},
 		{key: "p", label: "pull --ff-only", why: whyNot(kPull, r), run: func() tea.Cmd { return m.dispatch(kPull) }},
+		{key: "R", label: "reset --hard to upstream", why: whyNot(kReset, r), run: func() tea.Cmd { m.resetUpstream(r); return m.advance() }},
 		{key: "space", label: "select / unselect", run: func() tea.Cmd { m.toggleSel(r); return nil }},
 	}
 	if r.IsWorktree {

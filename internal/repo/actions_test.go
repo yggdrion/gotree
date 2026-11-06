@@ -160,3 +160,26 @@ func TestFetchTimesOut(t *testing.T) {
 		t.Fatalf("err=%v after %v", err, time.Since(start))
 	}
 }
+
+func TestResetToUpstream(t *testing.T) {
+	_, clone := newFixture(t)
+	want := gitT(t, clone, "rev-parse", "HEAD")
+	write(t, filepath.Join(clone, "a.txt"), "local\n")
+	gitT(t, clone, "commit", "-am", "local")
+	write(t, filepath.Join(clone, "dirty.txt"), "d\n")
+	gitT(t, clone, "add", "dirty.txt")
+	if err := ResetToUpstream(LoadRepo(clone)); err != nil {
+		t.Fatal(err)
+	}
+	if h := gitT(t, clone, "rev-parse", "HEAD"); h != want {
+		t.Fatalf("HEAD %s, want %s", h, want)
+	}
+	if s := ReadStatus(clone); len(s.Files) != 0 || s.Ahead != 0 {
+		t.Fatalf("status = %+v", s)
+	}
+}
+
+func TestResetToUpstreamRefusals(t *testing.T) {
+	wantErr(t, ResetToUpstream(&Repo{}), "no upstream")
+	wantErr(t, ResetToUpstream(&Repo{Status: Status{Upstream: "origin/x", Gone: true}}), "upstream gone")
+}
