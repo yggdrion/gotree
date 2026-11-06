@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -27,8 +28,9 @@ const (
 type job struct {
 	kind    kind
 	repo    *Repo
-	discard bool // kBack: reset+clean first
-	force   bool // kRemove: --force
+	discard bool     // kBack: reset+clean first
+	force   bool     // kRemove: --force
+	files   []string // files the confirm dialog listed (destructive jobs)
 }
 
 type confirm struct {
@@ -156,9 +158,38 @@ func (m *model) replace(nr *Repo) {
 				}
 			}
 		}
+		for _, ow := range old.Worktrees {
+			if !hasPath(nr, ow.Path) {
+				delete(m.sel, ow.Path)
+				delete(m.errs, ow.Path)
+			}
+		}
 		m.repos[i] = nr
 		return
 	}
+}
+
+func hasPath(r *Repo, p string) bool {
+	for _, w := range r.Worktrees {
+		if samePath(w.Path, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// cursorError is the full error of the cursor row, lines joined with " · ".
+func (m *model) cursorError() string {
+	rs := m.rows()
+	if len(rs) == 0 {
+		return ""
+	}
+	r := rs[min(m.idx, len(rs)-1)].Repo
+	e := m.errs[r.Path]
+	if e == "" {
+		e = r.Status.Err
+	}
+	return strings.Join(strings.Fields(strings.ReplaceAll(strings.TrimSpace(e), "\n", " · ")), " ")
 }
 
 // drop removes a top-level row that is no longer a repo, and its selection/busy/error state.
@@ -278,12 +309,16 @@ func (m *model) run(j job) tea.Cmd {
 		gitSem <- struct{}{}
 		defer func() { <-gitSem }()
 		var err error
-		switch j.kind {
-		case kBack:
+		if (j.kind == kBack && j.discard) || (j.kind == kRemove && j.force) {
+			err = checkConfirmed(j.repo.Path, j.files)
+		}
+		switch {
+		case err != nil:
+		case j.kind == kBack:
 			err = BackToDefault(j.repo, j.discard)
-		case kPull:
+		case j.kind == kPull:
 			err = Pull(j.repo)
-		case kRemove:
+		case j.kind == kRemove:
 			err = RemoveWorktree(j.repo, j.force)
 		}
 		return actionDoneMsg{p, top, verb, err, LoadRepo(top)}
@@ -304,13 +339,13 @@ func (m *model) advance() tea.Cmd {
 }
 
 func (m *model) targets() []*Repo {
-	if len(m.sel) > 0 {
-		var out []*Repo
-		for _, r := range m.all() {
-			if m.sel[r.Path] {
-				out = append(out, r)
-			}
+	var out []*Repo
+	for _, r := range m.all() {
+		if m.sel[r.Path] {
+			out = append(out, r)
 		}
+	}
+	if len(out) > 0 {
 		return out
 	}
 	if rs := m.rows(); len(rs) > 0 {
@@ -344,8 +379,13 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		if msg.skip {
 			return listen(m.out)
 		}
-		if _, had := m.errs[msg.path]; msg.err != nil && !had { // keep an earlier action error visible
-			m.errs[msg.path] = firstLine(msg.err)
+		// fetch errors are replaced/cleared by the next fetch; action errors survive it
+		if old, had := m.errs[msg.path]; !had || strings.HasPrefix(old, "fetch:") {
+			if msg.err != nil {
+				m.errs[msg.path] = msg.err.Error()
+			} else {
+				delete(m.errs, msg.path)
+			}
 		}
 		if !m.busy[msg.path] {
 			m.replace(msg.r)
@@ -395,7 +435,7 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 		m.queue = m.queue[1:]
 		switch s {
 		case "y":
-			m.pending = append(m.pending, job{kind: c.kind, repo: c.repo, discard: true, force: len(c.files) > 0})
+			m.pending = append(m.pending, job{kind: c.kind, repo: c.repo, discard: true, force: len(c.files) > 0, files: c.files})
 		case "esc":
 			m.queue, m.pending = nil, nil
 			m.setStatus(false, "cancelled")

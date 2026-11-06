@@ -154,7 +154,7 @@ func (m model) renderRow(rw row, cur bool, c cols, now time.Time) string {
 
 	st, fg := stateText(r.Status), stateColor(r.Status)
 	if e := m.errs[r.Path]; e != "" {
-		st, fg = e, red
+		st, fg = firstLineOf(e), red
 	}
 	if m.busy[r.Path] {
 		st, fg = "…", yellow
@@ -216,6 +216,8 @@ func (m model) View() string {
 		}
 	case m.filterOn:
 		b = append(b, " "+m.filter.View())
+	case m.status == "" && m.cursorError() != "":
+		b = append(b, sty(red, false).Render(trunc(" "+m.cursorError(), w)))
 	case m.status != "":
 		fg := red
 		if m.statusOK {

@@ -1,6 +1,10 @@
 package main
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -71,5 +75,73 @@ func TestOtherKeySkipsOnlyThatRepo(t *testing.T) {
 	press(&m, "y")
 	if m.busy[d1.Path] || !m.busy[d2.Path] || !m.busy[c.Path] {
 		t.Errorf("busy=%v", m.busy)
+	}
+}
+
+func TestFetchErrorClearsButActionErrorSurvives(t *testing.T) {
+	m := newModel("")
+	m.errs["a"] = "fetch: boom\nline2"
+	m.update(fetchedMsg{path: "a"})
+	if _, ok := m.errs["a"]; ok {
+		t.Errorf("stale fetch error kept: %v", m.errs)
+	}
+	m.update(fetchedMsg{path: "a", err: errors.New("fetch: again")})
+	if m.errs["a"] != "fetch: again" {
+		t.Errorf("errs = %v", m.errs)
+	}
+	m.errs["a"] = "pull: not fast-forward"
+	m.update(fetchedMsg{path: "a"})
+	m.update(fetchedMsg{path: "a", err: errors.New("fetch: x")})
+	if m.errs["a"] != "pull: not fast-forward" {
+		t.Errorf("action error lost: %v", m.errs)
+	}
+}
+
+func TestCursorErrorFull(t *testing.T) {
+	m := newModel("")
+	m.repos = []*Repo{{Path: "a", Name: "a"}}
+	m.cursor = "a"
+	m.errs["a"] = "fetch: fatal: x\nhint: y"
+	if got := m.cursorError(); got != "fetch: fatal: x · hint: y" {
+		t.Errorf("got %q", got)
+	}
+	delete(m.errs, "a")
+	m.repos[0].Status.Err = "bad repo"
+	if got := m.cursorError(); got != "bad repo" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestDiscardAbortsWhenFilesChangedSinceConfirm(t *testing.T) {
+	_, clone := newFixture(t)
+	os.WriteFile(filepath.Join(clone, "old.txt"), []byte("x"), 0o644)
+	r := LoadRepo(clone)
+	os.WriteFile(filepath.Join(clone, "new.txt"), []byte("precious"), 0o644)
+	m := newModel("")
+	m.repos = []*Repo{r}
+	msg := m.run(job{kind: kBack, repo: r, discard: true, files: []string{"old.txt"}})().(actionDoneMsg)
+	if msg.err == nil || !strings.Contains(msg.err.Error(), "changed since confirm") {
+		t.Fatalf("err = %v", msg.err)
+	}
+	if _, err := os.Stat(filepath.Join(clone, "new.txt")); err != nil {
+		t.Errorf("file deleted: %v", err)
+	}
+}
+
+func TestStaleSelectionFallsBackToCursor(t *testing.T) {
+	m := newModel("")
+	keep := &Repo{Path: "keep", Name: "keep"}
+	m.repos = []*Repo{keep}
+	m.sel["gone"] = true
+	if tg := m.targets(); len(tg) != 1 || tg[0] != keep {
+		t.Errorf("targets = %v", tg)
+	}
+	wt := &Repo{Path: "wt", Name: "wt", IsWorktree: true}
+	top := &Repo{Path: "top", Name: "top", Worktrees: []*Repo{wt}}
+	m.repos = []*Repo{top}
+	m.sel["wt"] = true
+	m.replace(&Repo{Path: "top", Name: "top"})
+	if m.sel["wt"] {
+		t.Error("stale selection kept")
 	}
 }
