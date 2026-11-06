@@ -31,3 +31,11 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+.superpowers/
+
+# built binaries
+/gotree
+/gotree.exe
+
+# goreleaser output
+/dist/
