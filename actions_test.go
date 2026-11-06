@@ -54,7 +54,7 @@ func TestBackToDefaultDiscard(t *testing.T) {
 	if err := BackToDefault(LoadRepo(clone), true); err != nil {
 		t.Fatal(err)
 	}
-	if s := ReadStatus(clone); len(s.Files) != 0 && !(len(s.Files) == 1 && s.Files[0] == "x.log") {
+	if s := ReadStatus(clone); len(s.Files) != 0 {
 		t.Fatalf("files = %v", s.Files)
 	}
 	if _, err := os.Stat(filepath.Join(clone, "x.log")); err != nil {
@@ -140,13 +140,22 @@ func TestFetchTimesOut(t *testing.T) {
 	if _, err := exec.LookPath("ssh"); err != nil {
 		t.Skip("no ssh")
 	}
-	_, clone := newFixture(t)
+	remote, _ := newFixture(t)
+	// ponytail: Windows doesn't kill git's ssh child on timeout and it keeps
+	// the clone dir open, so use a dir outside t.TempDir and clean up best-effort.
+	tmp, err := os.MkdirTemp("", "gotree-timeout")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmp) })
+	clone := filepath.Join(tmp, "clone")
+	gitT(t, tmp, "clone", remote, clone)
 	old := netTimeout
 	netTimeout = time.Second
 	defer func() { netTimeout = old }()
 	gitT(t, clone, "remote", "set-url", "origin", "ssh://git@10.255.255.1/x.git")
 	start := time.Now()
-	err := Fetch(clone)
+	err = Fetch(clone)
 	if err == nil || time.Since(start) > 5*time.Second {
 		t.Fatalf("err=%v after %v", err, time.Since(start))
 	}

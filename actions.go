@@ -77,7 +77,7 @@ func Fetch(path string) error {
 		if out, err := git(path, "remote"); err == nil {
 			for _, l := range strings.Split(out, "\n") {
 				if strings.TrimSpace(l) == "origin" {
-					gitNet(path, "remote", "set-head", "origin", "--auto") // error ignored
+					_, _ = gitNet(path, "remote", "set-head", "origin", "--auto") // error ignored
 					break
 				}
 			}
@@ -106,7 +106,7 @@ func OpenEditor(path string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("open: %s", firstLine(err))
 	}
-	go cmd.Wait() // reap
+	go func() { _ = cmd.Wait() }() // reap
 	return nil
 }
 

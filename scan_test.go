@@ -53,7 +53,9 @@ func TestLoadRepoSkipsMissingWorktree(t *testing.T) {
 	_, clone := newFixture(t)
 	wt := filepath.Join(clone, ".claude", "worktrees", "wt1")
 	gitT(t, clone, "worktree", "add", wt, "-b", "claude/wt1")
-	os.RemoveAll(wt)
+	if err := os.RemoveAll(wt); err != nil {
+		t.Fatal(err)
+	}
 	r := LoadRepo(clone)
 	if r == nil || len(r.Worktrees) != 0 {
 		t.Fatalf("unexpected: %+v", r)

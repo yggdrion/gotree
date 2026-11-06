@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -18,7 +17,7 @@ func TestReadStatusClean(t *testing.T) {
 func TestReadStatusAheadDirty(t *testing.T) {
 	_, clone := newFixture(t)
 	gitT(t, clone, "commit", "--allow-empty", "-m", "local")
-	os.WriteFile(filepath.Join(clone, "new.txt"), []byte("x"), 0o644)
+	mustWrite(t, filepath.Join(clone, "new.txt"), "x")
 	s := ReadStatus(clone)
 	if s.Ahead != 1 || s.Merged || !reflect.DeepEqual(s.Files, []string{"new.txt"}) {
 		t.Fatalf("unexpected: %+v", s)
@@ -74,7 +73,7 @@ func TestReadStatusEmptyRepo(t *testing.T) {
 
 func TestReadStatusUnquotesPaths(t *testing.T) {
 	_, clone := newFixture(t)
-	os.WriteFile(filepath.Join(clone, "über.txt"), []byte("x"), 0o644)
+	mustWrite(t, filepath.Join(clone, "über.txt"), "x")
 	if s := ReadStatus(clone); !reflect.DeepEqual(s.Files, []string{"über.txt"}) {
 		t.Fatalf("files = %q", s.Files)
 	}

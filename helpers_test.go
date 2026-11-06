@@ -65,3 +65,10 @@ func cloneOf(t *testing.T, remote string) string {
 	gitT(t, filepath.Dir(dir), "clone", remote, dir)
 	return dir
 }
+
+func mustWrite(t *testing.T, path, data string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}

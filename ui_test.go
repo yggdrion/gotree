@@ -114,9 +114,9 @@ func TestCursorErrorFull(t *testing.T) {
 
 func TestDiscardAbortsWhenFilesChangedSinceConfirm(t *testing.T) {
 	_, clone := newFixture(t)
-	os.WriteFile(filepath.Join(clone, "old.txt"), []byte("x"), 0o644)
+	mustWrite(t, filepath.Join(clone, "old.txt"), "x")
 	r := LoadRepo(clone)
-	os.WriteFile(filepath.Join(clone, "new.txt"), []byte("precious"), 0o644)
+	mustWrite(t, filepath.Join(clone, "new.txt"), "precious")
 	m := newModel("")
 	m.repos = []*Repo{r}
 	msg := m.run(job{kind: kBack, repo: r, discard: true, files: []string{"old.txt"}})().(actionDoneMsg)
