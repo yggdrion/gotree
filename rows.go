@@ -16,8 +16,8 @@ func matches(r *Repo, f string) bool {
 }
 
 // visibleRows flattens repos and their worktrees, applying fold state and a
-// case-insensitive name filter. Matching worktrees show even when folded,
-// unless the repo itself matches (then folded means no children).
+// case-insensitive name filter. A worktree whose own name matches always shows
+// under its parent; other worktrees show only when the parent is expanded and matches.
 func visibleRows(rs []*Repo, filter string) []row {
 	f := strings.ToLower(filter)
 	var out []row
@@ -25,8 +25,7 @@ func visibleRows(rs []*Repo, filter string) []row {
 		self := matches(r, f)
 		var kids []row
 		for _, w := range r.Worktrees {
-			switch {
-			case r.Expanded && self, matches(w, f) && (r.Expanded || !self):
+			if (f != "" && matches(w, f)) || (r.Expanded && self) {
 				kids = append(kids, row{w, true})
 			}
 		}

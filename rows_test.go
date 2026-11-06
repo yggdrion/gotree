@@ -47,6 +47,17 @@ func TestVisibleRows(t *testing.T) {
 	}
 }
 
+func TestVisibleRowsWorktreeMatchWhenParentMatches(t *testing.T) {
+	sf := &Repo{Name: "squad-fix", IsWorktree: true}
+	other := &Repo{Name: "other", IsWorktree: true}
+	squad := &Repo{Name: "Squad", Worktrees: []*Repo{sf, other}}
+	got := visibleRows([]*Repo{squad}, "squad")
+	want := []row{{squad, false}, {sf, true}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v want %v", got, want)
+	}
+}
+
 func TestStateText(t *testing.T) {
 	tests := []struct {
 		name string
