@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -10,15 +12,15 @@ import (
 func TestQuickOrder(t *testing.T) {
 	root := t.TempDir()
 	for _, d := range []string{"a", "b", "c"} {
-		os.Mkdir(filepath.Join(root, d), 0o755)
+		mustMkdir(t, filepath.Join(root, d))
 	}
-	os.Mkdir(filepath.Join(root, "a", ".git"), 0o755)
-	os.Mkdir(filepath.Join(root, "b", ".git"), 0o755)
+	mustMkdir(t, filepath.Join(root, "a", ".git"))
+	mustMkdir(t, filepath.Join(root, "b", ".git"))
 	old, newer := time.Now().Add(-48*time.Hour), time.Now().Add(-24*time.Hour)
 	for _, p := range []string{"a", "a/.git", "b", "b/.git", "c"} {
-		os.Chtimes(filepath.Join(root, p), old, old)
+		mustChtimes(t, filepath.Join(root, p), old)
 	}
-	os.Chtimes(filepath.Join(root, "b"), newer, newer)
+	mustChtimes(t, filepath.Join(root, "b"), newer)
 	got := QuickOrder(root)
 	want := []string{filepath.Join(root, "b"), filepath.Join(root, "a")}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
@@ -85,5 +87,33 @@ func TestSortRepos(t *testing.T) {
 	SortRepos(rs)
 	if rs[0].Name != "3" || rs[1].Name != "2" || rs[2].Name != "1" {
 		t.Fatalf("unexpected order")
+	}
+}
+
+func mustMkdir(t *testing.T, p string) {
+	t.Helper()
+	if err := os.Mkdir(p, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustChtimes(t *testing.T, p string, ts time.Time) {
+	t.Helper()
+	if err := os.Chtimes(p, ts, ts); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDedupeCaseInsensitiveCommonDir(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("case-insensitive paths are Windows-only")
+	}
+	_, clone := newFixture(t)
+	side := filepath.Join(t.TempDir(), "side")
+	gitT(t, clone, "worktree", "add", side)
+	main, linked := LoadRepo(clone), LoadRepo(side)
+	linked.CommonDir = strings.ToUpper(linked.CommonDir)
+	if got := Dedupe([]*Repo{linked, main}); len(got) != 1 || got[0] != main {
+		t.Fatalf("unexpected: %+v", got)
 	}
 }

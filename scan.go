@@ -114,20 +114,23 @@ func LoadRepo(path string) *Repo {
 
 // Dedupe drops top-level linked worktrees whose main repo is also listed. Keeps order.
 func Dedupe(rs []*Repo) []*Repo {
-	mains := map[string]bool{}
-	for _, r := range rs {
-		if !r.IsWorktree {
-			mains[r.CommonDir] = true
-		}
-	}
 	var out []*Repo
 	for _, r := range rs {
-		if r.IsWorktree && mains[r.CommonDir] {
+		if r.IsWorktree && hasMain(rs, r.CommonDir) {
 			continue
 		}
 		out = append(out, r)
 	}
 	return out
+}
+
+func hasMain(rs []*Repo, commonDir string) bool {
+	for _, m := range rs {
+		if !m.IsWorktree && samePath(m.CommonDir, commonDir) {
+			return true
+		}
+	}
+	return false
 }
 
 // SortRepos sorts by Status.Updated, newest first (stable).
