@@ -189,3 +189,13 @@ func TestEnterMenu(t *testing.T) {
 		t.Error("x should cd")
 	}
 }
+
+func TestShiftRKeyOpensReset(t *testing.T) {
+	m := newModel(t.TempDir())
+	r := &repo.Repo{Name: "x", Status: repo.Status{Upstream: "origin/main"}}
+	m.openMenu(r)
+	m.key(tea.KeyPressMsg{Code: 'r', ShiftedCode: 'R', Mod: tea.ModShift})
+	if len(m.queue) != 1 || m.queue[0].kind != kReset {
+		t.Fatalf("queue = %v", m.queue)
+	}
+}
