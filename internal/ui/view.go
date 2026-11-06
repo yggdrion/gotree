@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/yggdrion/gotree/internal/repo"
 )
 
 const (
@@ -15,17 +16,18 @@ const (
 	cursorBG                         = "238"
 )
 
-const footer = " enter cd · c code · b back+pull · p pull · f fetch · r refresh · x select · →/← fold · d del worktree · / filter · ? help · q quit"
+const footer = " enter menu · x cd · c code · b back+pull · p pull · space select · f fetch · r refresh · →/← fold · d del worktree · / filter · ? help · q quit"
 
 var helpLines = []string{
 	"  ↑/↓ j/k   move",
-	"  enter     cd into the folder and quit",
+	"  enter     action menu (shows repo state)",
+	"  x         cd into the folder and quit",
 	"  c         open in VS Code",
 	"  b         back to default branch + pull (selection or cursor row)",
 	"  p         pull --ff-only (selection or cursor row)",
 	"  f         fetch all repos",
 	"  r         re-read local state of all repos and re-sort",
-	"  x         select / unselect row",
+	"  space     select / unselect row",
 	"  →/←       unfold / fold worktrees (← on a child jumps to parent)",
 	"  d         remove worktree (asks first, branch is kept)",
 	"  /         filter by name (enter keeps, esc clears)",
@@ -114,7 +116,7 @@ func (m model) cols() cols {
 	return cols{name, max(8, rest-name), state, 7}
 }
 
-func stateColor(s Status) string {
+func stateColor(s repo.Status) string {
 	switch {
 	case s.Err != "" || len(s.Files) > 0:
 		return red
@@ -154,7 +156,7 @@ func (m model) renderRow(rw row, cur bool, c cols, now time.Time) string {
 
 	st, fg := stateText(r.Status), stateColor(r.Status)
 	if e := m.errs[r.Path]; e != "" {
-		st, fg = firstLineOf(e), red
+		st, fg = repo.FirstLine(e), red
 	}
 	if m.busy[r.Path] {
 		st, fg = "…", yellow
@@ -195,7 +197,9 @@ func (m model) View() string {
 	b = append(b, m.header())
 	b = append(b, sty(grey, false).Bold(true).Render(pad("   "+pad("REPO", c.name)+"  "+pad("BRANCH", c.branch)+"  "+pad("STATE", c.state)+"  UPDATED", w)))
 	var body []string
-	if m.help {
+	if m.menu != nil {
+		body = m.menuLines()
+	} else if m.help {
 		body = helpLines
 	} else {
 		now := time.Now()

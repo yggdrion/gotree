@@ -1,24 +1,26 @@
-package main
+package ui
 
 import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/yggdrion/gotree/internal/repo"
 )
 
 type row struct {
-	Repo  *Repo
+	Repo  *repo.Repo
 	Child bool
 }
 
-func matches(r *Repo, f string) bool {
+func matches(r *repo.Repo, f string) bool {
 	return f == "" || strings.Contains(strings.ToLower(r.Name), f)
 }
 
 // visibleRows flattens repos and their worktrees, applying fold state and a
 // case-insensitive name filter. A worktree whose own name matches always shows
 // under its parent; other worktrees show only when the parent is expanded and matches.
-func visibleRows(rs []*Repo, filter string) []row {
+func visibleRows(rs []*repo.Repo, filter string) []row {
 	f := strings.ToLower(filter)
 	var out []row
 	for _, r := range rs {
@@ -37,7 +39,7 @@ func visibleRows(rs []*Repo, filter string) []row {
 	return out
 }
 
-func stateText(s Status) string {
+func stateText(s repo.Status) string {
 	if s.Err != "" {
 		return "! " + s.Err
 	}
@@ -69,7 +71,7 @@ func stateText(s Status) string {
 	return strings.Join(p, " ")
 }
 
-func branchText(s Status) string {
+func branchText(s repo.Status) string {
 	if s.Detached {
 		return "(detached " + s.SHA + ")"
 	}

@@ -31,6 +31,7 @@ Without the wrapper, gotree prints the chosen path to stdout on `Enter`.
 ```
 gt            # repos in the current folder
 gt <dir>      # repos in <dir>
+go run . <dir>  # from a checkout/worktree
 ```
 
 ## Keys
@@ -38,13 +39,14 @@ gt <dir>      # repos in <dir>
 | Key | Action |
 | --- | --- |
 | `↑`/`↓`, `j`/`k` | move |
-| `enter` | cd into the folder |
+| `enter` | action menu with repo state |
+| `x` | cd into the folder |
 | `c` | open in VS Code |
 | `b` | back to default branch + pull |
 | `p` | pull (`--ff-only`) |
 | `f` | fetch all |
 | `r` | refresh |
-| `x` | select |
+| `space` | select |
 | `→`/`←` | fold / unfold worktrees |
 | `d` | delete worktree |
 | `/` | filter |

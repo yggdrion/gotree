@@ -1,16 +1,18 @@
-package main
+package ui
 
 import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/yggdrion/gotree/internal/repo"
 )
 
 func TestVisibleRows(t *testing.T) {
-	fix, trixie := &Repo{Name: "fix", IsWorktree: true}, &Repo{Name: "trixie", IsWorktree: true}
-	squad := &Repo{Name: "Squad", Worktrees: []*Repo{fix, trixie}}
-	infra := &Repo{Name: "infra"}
-	rs := []*Repo{squad, infra}
+	fix, trixie := &repo.Repo{Name: "fix", IsWorktree: true}, &repo.Repo{Name: "trixie", IsWorktree: true}
+	squad := &repo.Repo{Name: "Squad", Worktrees: []*repo.Repo{fix, trixie}}
+	infra := &repo.Repo{Name: "infra"}
+	rs := []*repo.Repo{squad, infra}
 	names := func(rows []row) []string {
 		var o []string
 		for _, r := range rows {
@@ -48,10 +50,10 @@ func TestVisibleRows(t *testing.T) {
 }
 
 func TestVisibleRowsWorktreeMatchWhenParentMatches(t *testing.T) {
-	sf := &Repo{Name: "squad-fix", IsWorktree: true}
-	other := &Repo{Name: "other", IsWorktree: true}
-	squad := &Repo{Name: "Squad", Worktrees: []*Repo{sf, other}}
-	got := visibleRows([]*Repo{squad}, "squad")
+	sf := &repo.Repo{Name: "squad-fix", IsWorktree: true}
+	other := &repo.Repo{Name: "other", IsWorktree: true}
+	squad := &repo.Repo{Name: "Squad", Worktrees: []*repo.Repo{sf, other}}
+	got := visibleRows([]*repo.Repo{squad}, "squad")
 	want := []row{{squad, false}, {sf, true}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v want %v", got, want)
@@ -61,20 +63,20 @@ func TestVisibleRowsWorktreeMatchWhenParentMatches(t *testing.T) {
 func TestStateText(t *testing.T) {
 	tests := []struct {
 		name string
-		s    Status
+		s    repo.Status
 		want string
 	}{
-		{"clean", Status{Upstream: "origin/x", Default: "main"}, "✓"},
-		{"ahead+files", Status{Upstream: "u", Default: "main", Ahead: 2, Files: []string{"a", "b", "c"}}, "↑2 ●3"},
-		{"behind", Status{Upstream: "u", Default: "main", Behind: 4}, "↓4"},
-		{"merged", Status{Upstream: "u", Default: "main", Merged: true}, "merged → main"},
-		{"gone", Status{Upstream: "u", Default: "main", Gone: true}, "gone"},
-		{"err", Status{Err: "pull: not fast-forward", Ahead: 1}, "! pull: not fast-forward"},
-		{"err unknown default", Status{Err: "boom"}, "! boom"},
-		{"no upstream", Status{Default: "main"}, "no upstream"},
-		{"detached no upstream text", Status{Default: "main", Detached: true}, "✓"},
-		{"unknown default alone", Status{Upstream: "u"}, "?"},
-		{"unknown default with ahead", Status{Upstream: "u", Ahead: 2}, "? ↑2"},
+		{"clean", repo.Status{Upstream: "origin/x", Default: "main"}, "✓"},
+		{"ahead+files", repo.Status{Upstream: "u", Default: "main", Ahead: 2, Files: []string{"a", "b", "c"}}, "↑2 ●3"},
+		{"behind", repo.Status{Upstream: "u", Default: "main", Behind: 4}, "↓4"},
+		{"merged", repo.Status{Upstream: "u", Default: "main", Merged: true}, "merged → main"},
+		{"gone", repo.Status{Upstream: "u", Default: "main", Gone: true}, "gone"},
+		{"err", repo.Status{Err: "pull: not fast-forward", Ahead: 1}, "! pull: not fast-forward"},
+		{"err unknown default", repo.Status{Err: "boom"}, "! boom"},
+		{"no upstream", repo.Status{Default: "main"}, "no upstream"},
+		{"detached no upstream text", repo.Status{Default: "main", Detached: true}, "✓"},
+		{"unknown default alone", repo.Status{Upstream: "u"}, "?"},
+		{"unknown default with ahead", repo.Status{Upstream: "u", Ahead: 2}, "? ↑2"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -86,10 +88,10 @@ func TestStateText(t *testing.T) {
 }
 
 func TestBranchText(t *testing.T) {
-	if got := branchText(Status{Branch: "main"}); got != "main" {
+	if got := branchText(repo.Status{Branch: "main"}); got != "main" {
 		t.Errorf("got %q", got)
 	}
-	if got := branchText(Status{Detached: true, SHA: "abc1234"}); got != "(detached abc1234)" {
+	if got := branchText(repo.Status{Detached: true, SHA: "abc1234"}); got != "(detached abc1234)" {
 		t.Errorf("got %q", got)
 	}
 }

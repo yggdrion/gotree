@@ -1,4 +1,4 @@
-package main
+package repo
 
 import (
 	"errors"
@@ -45,8 +45,8 @@ func BackToDefault(r *Repo, discard bool) error {
 	return pullFF(r.Path)
 }
 
-// checkConfirmed refuses a destructive action if files appeared that the dialog never listed.
-func checkConfirmed(path string, confirmed []string) error {
+// CheckConfirmed refuses a destructive action if files appeared that the dialog never listed.
+func CheckConfirmed(path string, confirmed []string) error {
 	ok := map[string]bool{}
 	for _, f := range confirmed {
 		ok[f] = true
@@ -110,7 +110,7 @@ func OpenEditor(path string) error {
 	return nil
 }
 
-func firstLineOf(s string) string {
+func FirstLine(s string) string {
 	l, _, _ := strings.Cut(s, "\n")
 	return strings.TrimSpace(l)
 }

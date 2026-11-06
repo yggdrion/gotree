@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/yggdrion/gotree/internal/ui"
 )
 
 // version is set by ldflags: -X main.version=...
@@ -44,21 +44,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	final, err := tea.NewProgram(newModel(root), tea.WithAltScreen()).Run()
+	chosen, err := ui.Run(root)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gotree:", err)
 		os.Exit(1)
 	}
-	m, ok := final.(model)
-	if !ok || m.Chosen() == "" {
+	if chosen == "" {
 		return
 	}
 	if f := os.Getenv("GOTREE_CD_FILE"); f != "" {
-		if err := writeCDFile(f, m.Chosen()); err != nil {
+		if err := writeCDFile(f, chosen); err != nil {
 			fmt.Fprintln(os.Stderr, "gotree:", err)
 			os.Exit(1)
 		}
 		return
 	}
-	fmt.Print(m.Chosen())
+	fmt.Print(chosen)
 }
