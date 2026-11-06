@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/yggdrion/gotree/internal/repo"
 )
 
@@ -190,7 +191,13 @@ func (m model) header() string {
 	return lipgloss.NewStyle().Bold(true).Render(l) + strings.Repeat(" ", gap) + sty(grey, false).Render(r)
 }
 
-func (m model) View() string {
+func (m model) View() tea.View {
+	v := tea.NewView(m.render())
+	v.AltScreen = true
+	return v
+}
+
+func (m model) render() string {
 	w := m.width()
 	c := m.cols()
 	var b []string

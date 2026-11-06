@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/yggdrion/gotree/internal/repo"
 )
 
@@ -51,11 +51,7 @@ func queued() (model, *repo.Repo, *repo.Repo, *repo.Repo) {
 }
 
 func press(m *model, s string) {
-	k := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
-	if s == "esc" {
-		k = tea.KeyMsg{Type: tea.KeyEsc}
-	}
-	m.key(k)
+	m.key(key(s))
 }
 
 func TestEscCancelsWholeBatch(t *testing.T) {
@@ -147,14 +143,17 @@ func TestStaleSelectionFallsBackToCursor(t *testing.T) {
 	}
 }
 
-func key(s string) tea.KeyMsg {
-	if s == "enter" {
-		return tea.KeyMsg{Type: tea.KeyEnter}
+func key(s string) tea.KeyPressMsg {
+	switch s {
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "esc":
+		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "space", " ":
+		return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
 	}
-	if s == "esc" {
-		return tea.KeyMsg{Type: tea.KeyEsc}
-	}
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+	r := []rune(s)
+	return tea.KeyPressMsg{Code: r[0], Text: s}
 }
 
 func TestEnterMenu(t *testing.T) {
