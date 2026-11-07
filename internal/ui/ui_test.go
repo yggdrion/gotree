@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/yggdrion/gotree/internal/repo"
@@ -197,5 +198,21 @@ func TestShiftRKeyOpensReset(t *testing.T) {
 	m.key(tea.KeyPressMsg{Code: 'r', ShiftedCode: 'R', Mod: tea.ModShift})
 	if len(m.queue) != 1 || m.queue[0].kind != kReset {
 		t.Fatalf("queue = %v", m.queue)
+	}
+}
+
+func TestSortToggleKeepsCursor(t *testing.T) {
+	m := newModel(t.TempDir())
+	old := &repo.Repo{Path: "/x/b", Name: "b"}
+	newer := &repo.Repo{Path: "/x/a", Name: "z", Status: repo.Status{Updated: time.Unix(100, 0)}}
+	m.repos = []*repo.Repo{newer, old}
+	m.cursor = old.Path
+	m.update(key("s"))
+	if m.sort != repo.SortName || m.repos[0] != old || m.cursor != old.Path {
+		t.Fatalf("sort=%v repos=%v cursor=%s", m.sort, m.repos, m.cursor)
+	}
+	m.update(key("s"))
+	if m.sort != repo.SortUpdated || m.repos[0] != newer {
+		t.Fatalf("not back to updated: %v", m.repos)
 	}
 }

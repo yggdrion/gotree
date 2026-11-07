@@ -18,7 +18,7 @@ const (
 	cursorBG                         = "238"
 )
 
-const footer = " enter menu · x cd · c code · b back+pull · p pull · space select · f fetch · r refresh · →/← fold · d del worktree · / filter · ? help · q quit"
+const footer = " enter menu · x cd · c code · b back+pull · p pull · space select · f fetch · r refresh · s sort · →/← fold · d del worktree · / filter · ? help · q quit"
 
 var helpLines = []string{
 	"  ↑/↓ j/k   move",
@@ -29,6 +29,7 @@ var helpLines = []string{
 	"  p         pull --ff-only (selection or cursor row)",
 	"  f         fetch all repos",
 	"  r         re-read local state of all repos and re-sort",
+	"  s         toggle sort: last updated / name",
 	"  space     select / unselect row",
 	"  →/←       unfold / fold worktrees (← on a child jumps to parent)",
 	"  d         remove worktree (asks first, branch is kept)",
@@ -185,7 +186,7 @@ func (m model) header() string {
 	if v := m.filter.Value(); v != "" {
 		l += "  /" + v
 	}
-	r := fmt.Sprintf("%d repos", len(m.repos))
+	r := fmt.Sprintf("%d repos · sort: %s", len(m.repos), m.sort)
 	switch {
 	case m.loading:
 		r += "   loading…"

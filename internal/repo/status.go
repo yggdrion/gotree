@@ -2,6 +2,7 @@ package repo
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -17,14 +18,14 @@ type Status struct {
 	Files         []string  // uncommitted, incl. untracked
 	Default       string    // "" = unknown -> UI shows "?"
 	Merged        bool      // not on Default and HEAD is ancestor of origin/<Default>
-	Updated       time.Time // max(last commit time, mtime of index)
+	Updated       time.Time // max(last commit time, newest mtime among uncommitted files)
 	Err           string    // last load/action error, short
 }
 
 // ReadStatus never panics; git errors land in Err and partial state is kept.
 func ReadStatus(path string) Status {
 	var s Status
-	out, err := git(path, "-c", "core.quotePath=false", "status", "--porcelain=v2", "--branch")
+	out, err := git(path, "--no-optional-locks", "-c", "core.quotePath=false", "status", "--porcelain=v2", "--branch")
 	if err != nil {
 		s.Err, _, _ = strings.Cut(err.Error(), "\n")
 		return s
@@ -52,10 +53,27 @@ func ReadStatus(path string) Status {
 			s.Updated = time.Unix(n, 0)
 		}
 	}
-	if idx, err := git(path, "rev-parse", "--path-format=absolute", "--git-path", "index"); err == nil {
-		if fi, err := os.Stat(idx); err == nil && fi.ModTime().After(s.Updated) {
-			s.Updated = fi.ModTime()
-		}
+	if t := newestMod(path, s.Files); t.After(s.Updated) {
+		s.Updated = t
 	}
 	return s
+}
+
+// maxStat bounds how many uncommitted files are stat'ed per repo.
+const maxStat = 200
+
+// newestMod returns the newest mtime among files (paths relative to dir).
+// Missing files (deleted, renamed) are skipped. Unlike .git/index it is
+// not touched by git's own housekeeping.
+func newestMod(dir string, files []string) time.Time {
+	var newest time.Time
+	for i, f := range files {
+		if i >= maxStat {
+			break
+		}
+		if fi, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(f))); err == nil && fi.ModTime().After(newest) {
+			newest = fi.ModTime()
+		}
+	}
+	return newest
 }
