@@ -78,6 +78,7 @@ type model struct {
 	filter   textinput.Model
 	filterOn bool // filter input has focus
 	help     bool
+	sort     repo.SortMode
 	menu     *menuState
 	chosen   string
 	out      chan tea.Msg
@@ -154,6 +155,7 @@ func (m *model) replace(nr *repo.Repo) {
 			continue
 		}
 		nr.Expanded = old.Expanded
+		repo.SortRepos(nr.Worktrees, m.sort)
 		for _, w := range nr.Worktrees {
 			for _, ow := range old.Worktrees {
 				if repo.SamePath(ow.Path, w.Path) {
@@ -230,6 +232,15 @@ func (m *model) all() []*repo.Repo {
 		out = append(out, r.Worktrees...)
 	}
 	return out
+}
+
+// resort orders repos and their worktrees by the current mode; the cursor follows its path.
+func (m *model) resort() {
+	repo.SortRepos(m.repos, m.sort)
+	for _, r := range m.repos {
+		repo.SortRepos(r.Worktrees, m.sort)
+	}
+	m.fix()
 }
 
 func (m *model) rows() []row { return visibleRows(m.repos, m.filter.Value()) }
@@ -376,7 +387,7 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		return listen(m.out)
 	case loadDoneMsg:
 		m.loading = false
-		repo.SortRepos(m.repos)
+		m.resort()
 		m.startFetch()
 		return listen(m.out)
 	case fetchedMsg:
@@ -405,7 +416,7 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 			}
 		}
 		if m.reloadDone++; m.reloadDone >= m.reloadLeft {
-			repo.SortRepos(m.repos)
+			m.resort()
 			m.reloadLeft = 0
 		}
 		return listen(m.out)
@@ -500,6 +511,10 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		m.startFetch()
+	case "s":
+		m.sort = m.sort.Next()
+		m.resort()
+		m.setStatus(true, "sorted by %s", m.sort)
 	case "r":
 		if m.loading || m.reloadLeft > 0 {
 			m.setStatus(false, "still loading")

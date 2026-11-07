@@ -53,11 +53,10 @@ func QuickOrder(root string) []string {
 		if err != nil {
 			continue
 		}
+		// .git/HEAD changes on commit/checkout/pull, not on fetch or status
 		mod := g.ModTime()
-		for _, c := range []string{p, filepath.Join(p, ".git", "index")} {
-			if fi, err := os.Stat(c); err == nil && fi.ModTime().After(mod) {
-				mod = fi.ModTime()
-			}
+		if fi, err := os.Stat(filepath.Join(p, ".git", "HEAD")); err == nil {
+			mod = fi.ModTime()
 		}
 		items = append(items, item{p, mod})
 	}
@@ -108,7 +107,7 @@ func LoadRepo(path string) *Repo {
 			IsWorktree: true, MainPath: r.Path, Status: ReadStatus(w.Path),
 		})
 	}
-	SortRepos(r.Worktrees)
+	SortRepos(r.Worktrees, SortUpdated)
 	return r
 }
 
@@ -133,7 +132,38 @@ func hasMain(rs []*Repo, commonDir string) bool {
 	return false
 }
 
-// SortRepos sorts by Status.Updated, newest first (stable).
-func SortRepos(rs []*Repo) {
-	sort.SliceStable(rs, func(i, j int) bool { return rs[i].Status.Updated.After(rs[j].Status.Updated) })
+// SortMode selects how SortRepos orders repos.
+type SortMode int
+
+const (
+	SortUpdated SortMode = iota // Status.Updated, newest first
+	SortName                    // folder name, case-insensitive
+)
+
+// Next cycles to the other mode.
+func (m SortMode) Next() SortMode {
+	if m == SortUpdated {
+		return SortName
+	}
+	return SortUpdated
+}
+
+func (m SortMode) String() string {
+	if m == SortName {
+		return "name"
+	}
+	return "updated"
+}
+
+// SortRepos sorts in place (stable) by mode; name ties fall back to newest first.
+func SortRepos(rs []*Repo, mode SortMode) {
+	sort.SliceStable(rs, func(i, j int) bool {
+		if mode == SortName {
+			a, b := strings.ToLower(rs[i].Name), strings.ToLower(rs[j].Name)
+			if a != b {
+				return a < b
+			}
+		}
+		return rs[i].Status.Updated.After(rs[j].Status.Updated)
+	})
 }

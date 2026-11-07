@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestReadStatusClean(t *testing.T) {
@@ -76,5 +77,22 @@ func TestReadStatusUnquotesPaths(t *testing.T) {
 	mustWrite(t, filepath.Join(clone, "über.txt"), "x")
 	if s := ReadStatus(clone); !reflect.DeepEqual(s.Files, []string{"über.txt"}) {
 		t.Fatalf("files = %q", s.Files)
+	}
+}
+
+func TestReadStatusUpdatedIgnoresIndexRefresh(t *testing.T) {
+	_, clone := newFixture(t)
+	before := ReadStatus(clone)
+	idx := filepath.Join(clone, ".git", "index")
+	future := time.Now().Add(48 * time.Hour)
+	mustChtimes(t, idx, future)
+	if got := ReadStatus(clone); !got.Updated.Equal(before.Updated) {
+		t.Fatalf("index mtime leaked into Updated: %v vs %v", got.Updated, before.Updated)
+	}
+	f := filepath.Join(clone, "dirty.txt")
+	mustWrite(t, f, "x")
+	mustChtimes(t, f, future)
+	if got := ReadStatus(clone); got.Updated.Unix() != future.Unix() {
+		t.Fatalf("dirty file mtime not used: %v", got.Updated)
 	}
 }

@@ -16,11 +16,16 @@ func TestQuickOrder(t *testing.T) {
 	}
 	mustMkdir(t, filepath.Join(root, "a", ".git"))
 	mustMkdir(t, filepath.Join(root, "b", ".git"))
+	for _, d := range []string{"a", "b"} {
+		if err := os.WriteFile(filepath.Join(root, d, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	old, newer := time.Now().Add(-48*time.Hour), time.Now().Add(-24*time.Hour)
-	for _, p := range []string{"a", "a/.git", "b", "b/.git", "c"} {
+	for _, p := range []string{"a", "a/.git", "a/.git/HEAD", "b", "b/.git", "c"} {
 		mustChtimes(t, filepath.Join(root, p), old)
 	}
-	mustChtimes(t, filepath.Join(root, "b"), newer)
+	mustChtimes(t, filepath.Join(root, "b", ".git", "HEAD"), newer)
 	got := QuickOrder(root)
 	want := []string{filepath.Join(root, "b"), filepath.Join(root, "a")}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
@@ -86,9 +91,13 @@ func TestSortRepos(t *testing.T) {
 		return &Repo{Name: n, Status: Status{Updated: t1.Add(time.Duration(d) * time.Hour)}}
 	}
 	rs := []*Repo{mk("1", 0), mk("3", 2), mk("2", 1)}
-	SortRepos(rs)
+	SortRepos(rs, SortUpdated)
 	if rs[0].Name != "3" || rs[1].Name != "2" || rs[2].Name != "1" {
 		t.Fatalf("unexpected order")
+	}
+	SortRepos(rs, SortName)
+	if rs[0].Name != "1" || rs[1].Name != "2" || rs[2].Name != "3" {
+		t.Fatalf("unexpected name order")
 	}
 }
 
