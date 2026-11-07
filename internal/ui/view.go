@@ -15,7 +15,7 @@ import (
 
 const (
 	green, yellow, red, purple, grey = "42", "220", "196", "135", "245"
-	cursorBG                         = "238"
+	cursorBG, selectedBG             = "238", "24"
 )
 
 const footer = " enter menu · x cd · c code · b back+pull · p pull · space select · f fetch · r refresh · →/← fold · d del worktree · / filter · ? help · q quit"
@@ -38,12 +38,19 @@ var helpLines = []string{
 }
 
 func sty(fg string, cur bool) lipgloss.Style {
+	if cur {
+		return styBG(fg, cursorBG)
+	}
+	return styBG(fg, "")
+}
+
+func styBG(fg, bg string) lipgloss.Style {
 	s := lipgloss.NewStyle()
 	if fg != "" {
 		s = s.Foreground(lipgloss.Color(fg))
 	}
-	if cur {
-		s = s.Background(lipgloss.Color(cursorBG))
+	if bg != "" {
+		s = s.Background(lipgloss.Color(bg))
 	}
 	return s
 }
@@ -136,6 +143,14 @@ func stateColor(s repo.Status) string {
 
 func (m model) renderRow(rw row, cur bool, c cols, now time.Time) string {
 	r := rw.Repo
+	bg := ""
+	switch {
+	case cur:
+		bg = cursorBG
+	case m.sel[r.Path]:
+		bg = selectedBG
+	}
+	sty := func(fg string, _ bool) lipgloss.Style { return styBG(fg, bg) }
 	g0, g1 := " ", " "
 	switch {
 	case rw.Child:
@@ -168,10 +183,14 @@ func (m model) renderRow(rw row, cur bool, c cols, now time.Time) string {
 		st, fg = "…", yellow
 	}
 	gap := sty("", cur).Render("  ")
-	return sty(purple, cur).Render(g0) + sty(green, cur).Render(g1) + sty("", cur).Render(" ") + nameCell + gap +
+	line := sty(purple, cur).Render(g0) + sty(green, cur).Render(g1) + sty("", cur).Render(" ") + nameCell + gap +
 		sty("", cur).Render(pad(trunc(branchText(r.Status), c.branch), c.branch)) + gap +
 		sty(fg, cur).Render(pad(trunc(st, c.state), c.state)) + gap +
 		sty(grey, cur).Render(pad(relTime(now, r.Status.Updated), c.upd))
+	if n := m.width() - lipgloss.Width(line); n > 0 {
+		line += sty("", cur).Render(strings.Repeat(" ", n))
+	}
+	return line
 }
 
 func (m model) header() string {
