@@ -128,3 +128,24 @@ func FirstLine(s string) string {
 	l, _, _ := strings.Cut(s, "\n")
 	return strings.TrimSpace(l)
 }
+
+// Diff returns uncommitted changes vs HEAD (staged and unstaged), followed by untracked files.
+func Diff(path string) (string, error) {
+	out, err := git(path, "diff", "HEAD", "--no-color", "--no-ext-diff")
+	if err != nil { // no HEAD yet (unborn branch): diff against the index
+		if out, err = git(path, "diff", "--no-color", "--no-ext-diff"); err != nil {
+			return "", fmt.Errorf("diff: %s", firstLine(err))
+		}
+	}
+	if u, err := git(path, "ls-files", "--others", "--exclude-standard"); err == nil && u != "" {
+		if out != "" {
+			out += "\n\n"
+		}
+		out += "untracked:\n"
+		for _, f := range strings.Split(u, "\n") {
+			out += "  ? " + f + "\n"
+		}
+		out = strings.TrimRight(out, "\n")
+	}
+	return out, nil
+}

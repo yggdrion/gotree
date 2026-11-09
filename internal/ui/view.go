@@ -18,7 +18,7 @@ const (
 	cursorBG, selectedBG             = "238", "24"
 )
 
-const footer = " enter menu · x cd · c code · b back+pull · p pull · space select · f fetch · r refresh · s sort · →/← fold · d del worktree · / filter · ? help · q quit"
+const footer = " enter menu · x cd · c code · b back+pull · p pull · R reset · v diff · space select · f fetch · r refresh · s sort · →/← fold · d del worktree · / filter · ? help · q quit"
 
 var helpLines = []string{
 	"  ↑/↓ j/k   move",
@@ -27,6 +27,8 @@ var helpLines = []string{
 	"  c         open in VS Code",
 	"  b         back to default branch + pull (selection or cursor row)",
 	"  p         pull --ff-only (selection or cursor row)",
+	"  R         reset --hard to upstream (asks first)",
+	"  v         view diff (uncommitted changes vs HEAD)",
 	"  f         fetch all repos",
 	"  r         re-read local state of all repos and re-sort",
 	"  s         toggle sort: last updated / name",
@@ -229,7 +231,7 @@ func (m model) render() string {
 	b = append(b, m.header())
 	b = append(b, sty(grey, false).Bold(true).Render(pad("   "+pad("REPO", c.name)+"  "+pad("BRANCH", c.branch)+"  "+pad("STATE", c.state)+"  UPDATED", w)))
 	var body []string
-	if m.help && m.menu == nil {
+	if m.help && m.menu == nil && m.diff == nil {
 		body = helpLines
 	} else {
 		now := time.Now()
@@ -243,6 +245,9 @@ func (m model) render() string {
 	}
 	if m.menu != nil {
 		body = overlay(body, m.menuBox(w), w)
+	}
+	if m.diff != nil {
+		body = overlay(body, m.diffBox(w, len(body)), w)
 	}
 	b = append(b, body...)
 	b = append(b, sty(grey, false).Render(strings.Repeat("─", w)))

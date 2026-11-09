@@ -69,6 +69,10 @@ func whyNot(k kind, r *repo.Repo) string {
 }
 
 func (m *model) resetUpstream(r *repo.Repo) {
+	if why := whyNot(kReset, r); why != "" {
+		m.setStatus(false, "R: %s: %s", r.Name, why)
+		return
+	}
 	if m.busy[r.Path] || m.busy[m.topPath(r.Path)] {
 		m.setStatus(false, "busy")
 		return
@@ -83,6 +87,7 @@ func (m *model) openMenu(r *repo.Repo) {
 		{key: "b", label: "back to default branch + pull", why: whyNot(kBack, r), run: func() tea.Cmd { return m.dispatch(kBack) }},
 		{key: "p", label: "pull --ff-only", why: whyNot(kPull, r), run: func() tea.Cmd { return m.dispatch(kPull) }},
 		{key: "R", label: "reset --hard to upstream", why: whyNot(kReset, r), run: func() tea.Cmd { m.resetUpstream(r); return m.advance() }},
+		{key: "v", label: "view diff", run: func() tea.Cmd { m.openDiff(r); return nil }},
 		{key: "space", label: "select / unselect", run: func() tea.Cmd { m.toggleSel(r); return nil }},
 	}
 	if r.IsWorktree {
