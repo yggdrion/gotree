@@ -80,6 +80,7 @@ type model struct {
 	help     bool
 	sort     repo.SortMode
 	menu     *menuState
+	diff     *diffState
 	chosen   string
 	out      chan tea.Msg
 
@@ -463,6 +464,10 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return m.advance()
 	}
+	if m.diff != nil {
+		m.diffKey(s)
+		return nil
+	}
 	if m.menu != nil {
 		return m.menuKey(s)
 	}
@@ -551,6 +556,11 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 		}
 	case "d":
 		m.removeWT(cur)
+	case "R":
+		m.resetUpstream(cur)
+		return m.advance()
+	case "v":
+		m.openDiff(cur)
 	case "b":
 		return m.dispatch(kBack)
 	case "p":

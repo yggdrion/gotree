@@ -216,3 +216,52 @@ func TestSortToggleKeepsCursor(t *testing.T) {
 		t.Fatalf("not back to updated: %v", m.repos)
 	}
 }
+
+func TestShiftRKeyOnListOpensReset(t *testing.T) {
+	m := newModel(t.TempDir())
+	m.repos = []*repo.Repo{{Path: "/x/a", Name: "a", Status: repo.Status{Upstream: "origin/main"}}}
+	m.fix()
+	m.key(tea.KeyPressMsg{Code: 'r', ShiftedCode: 'R', Mod: tea.ModShift})
+	if len(m.queue) != 1 || m.queue[0].kind != kReset {
+		t.Fatalf("queue = %v", m.queue)
+	}
+	m = newModel(t.TempDir())
+	m.repos = []*repo.Repo{{Path: "/x/a", Name: "a"}}
+	m.fix()
+	m.key(key("R"))
+	if len(m.queue) != 0 || !strings.Contains(m.status, "no upstream") {
+		t.Fatalf("queue=%v status=%q", m.queue, m.status)
+	}
+}
+
+func TestDiffOverlay(t *testing.T) {
+	_, clone := newFixture(t)
+	m := newModel(filepath.Dir(clone))
+	m.w, m.h = 80, 20
+	m.repos = []*repo.Repo{repo.LoadRepo(clone)}
+	m.fix()
+	m.key(key("v"))
+	if m.diff != nil || !strings.Contains(m.status, "no changes") {
+		t.Fatalf("clean repo: diff=%v status=%q", m.diff, m.status)
+	}
+	mustWrite(t, filepath.Join(clone, "a.txt"), "changed\n")
+	mustWrite(t, filepath.Join(clone, "new.txt"), "n\n")
+	m.key(key("v"))
+	if m.diff == nil {
+		t.Fatalf("no diff opened, status=%q", m.status)
+	}
+	out := m.render()
+	for _, want := range []string{"+changed", "-a", "? new.txt", "esc close"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("render lacks %q", want)
+		}
+	}
+	m.key(key("G"))
+	if m.diff.off < 0 || m.diff.off > len(m.diff.lines) {
+		t.Errorf("off = %d", m.diff.off)
+	}
+	m.key(key("esc"))
+	if m.diff != nil {
+		t.Error("esc should close diff")
+	}
+}
