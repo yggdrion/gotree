@@ -18,7 +18,7 @@ const (
 	cursorBG, selectedBG             = "238", "24"
 )
 
-const footer = " enter menu · x cd · c code · b back+pull · p pull · R reset · v diff · space select · f fetch · r refresh · s sort · →/← fold · d del worktree · / filter · ? help · q quit"
+const footer = " enter menu · x cd · c code · b back+pull · p pull · P pull all · R reset · v diff · space select · f fetch · r refresh · s sort · →/← fold · d del worktree · / filter · ? help · q quit"
 
 var helpLines = []string{
 	"  ↑/↓ j/k   move",
@@ -27,6 +27,7 @@ var helpLines = []string{
 	"  c         open in VS Code",
 	"  b         back to default branch + pull (selection or cursor row)",
 	"  p         pull --ff-only (selection or cursor row)",
+	"  P         pull all: every clean repo that is behind and not ahead",
 	"  R         reset --hard to upstream (asks first)",
 	"  v         view diff (uncommitted changes vs HEAD)",
 	"  f         fetch all repos",
