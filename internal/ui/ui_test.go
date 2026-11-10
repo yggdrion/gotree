@@ -319,3 +319,35 @@ func TestPullAllOnlySimple(t *testing.T) {
 		t.Fatalf("busy=%v status=%q", m.busy, m.status)
 	}
 }
+
+// esc/q close an open overlay first; only the next press quits.
+func TestEscClosesOverlayBeforeQuit(t *testing.T) {
+	_, clone := newFixture(t)
+	m := newModel(filepath.Dir(clone))
+	m.w, m.h = 100, 30
+	m.repos = []*repo.Repo{repo.LoadRepo(clone)}
+	m.fix()
+	for _, k := range []string{"esc", "q"} {
+		m.key(key("?"))
+		if !m.help {
+			t.Fatal("? should open help")
+		}
+		out := m.render()
+		if !strings.Contains(out, "show this help") || !strings.Contains(out, "clone") {
+			t.Errorf("help should overlay the repo list:\n%s", out)
+		}
+		if c := m.key(key(k)); c != nil || m.help {
+			t.Fatalf("%s should close help without quitting", k)
+		}
+		m.key(key("enter"))
+		if m.menu == nil {
+			t.Fatal("enter should open menu")
+		}
+		if c := m.key(key(k)); c != nil || m.menu != nil {
+			t.Fatalf("%s should close menu without quitting", k)
+		}
+		if c := m.key(key(k)); c == nil {
+			t.Fatalf("%s with no overlay should quit", k)
+		}
+	}
+}

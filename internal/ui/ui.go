@@ -471,6 +471,13 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 	if m.menu != nil {
 		return m.menuKey(s)
 	}
+	if m.help {
+		switch s {
+		case "esc", "q", "?":
+			m.help = false
+		}
+		return nil
+	}
 	if m.filterOn {
 		switch s {
 		case "esc":
@@ -506,7 +513,7 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 	case "down", "j":
 		m.move(1)
 	case "?":
-		m.help = !m.help
+		m.help = true
 	case "/":
 		m.filterOn = true
 		return m.filter.Focus()

@@ -37,8 +37,8 @@ var helpLines = []string{
 	"  →/←       unfold / fold worktrees (← on a child jumps to parent)",
 	"  d         remove worktree (asks first, branch is kept)",
 	"  /         filter by name (enter keeps, esc clears)",
-	"  ?         toggle this help",
-	"  q / esc   quit",
+	"  ?         show this help",
+	"  q / esc   close overlay; quit when none is open",
 }
 
 func sty(fg string, cur bool) lipgloss.Style {
@@ -232,17 +232,16 @@ func (m model) render() string {
 	b = append(b, m.header())
 	b = append(b, sty(grey, false).Bold(true).Render(pad("   "+pad("REPO", c.name)+"  "+pad("BRANCH", c.branch)+"  "+pad("STATE", c.state)+"  UPDATED", w)))
 	var body []string
-	if m.help && m.menu == nil && m.diff == nil {
-		body = helpLines
-	} else {
-		now := time.Now()
-		rs := m.rows()
-		for i := m.off; i < len(rs) && i < m.off+m.listH(); i++ {
-			body = append(body, m.renderRow(rs[i], i == m.idx, c, now))
-		}
+	now := time.Now()
+	rs := m.rows()
+	for i := m.off; i < len(rs) && i < m.off+m.listH(); i++ {
+		body = append(body, m.renderRow(rs[i], i == m.idx, c, now))
 	}
 	for len(body) < m.listH() && m.h > 0 {
 		body = append(body, "")
+	}
+	if m.help {
+		body = overlay(body, box(append(helpLines, "", " esc/q/? close"), w), w)
 	}
 	if m.menu != nil {
 		body = overlay(body, m.menuBox(w), w)
@@ -276,13 +275,18 @@ func (m model) render() string {
 
 // menuBox renders the menu as a bordered box, at most maxW wide.
 func (m model) menuBox(maxW int) []string {
-	box := lipgloss.NewStyle().
+	return box(m.menuLines(), maxW)
+}
+
+// box renders lines as a bordered box, at most maxW wide.
+func box(lines []string, maxW int) []string {
+	b := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(purple)).
 		Padding(0, 1).
 		MaxWidth(maxW).
-		Render(strings.Join(m.menuLines(), "\n"))
-	return strings.Split(box, "\n")
+		Render(strings.Join(lines, "\n"))
+	return strings.Split(b, "\n")
 }
 
 // overlay draws box centered over base, keeping base visible around it.
