@@ -265,3 +265,20 @@ func TestDiffOverlay(t *testing.T) {
 		t.Error("esc should close diff")
 	}
 }
+
+// Update has a value receiver, so menu actions must act on the model passed
+// to the next Update, not on the copy that opened the menu.
+func TestMenuCdThroughUpdate(t *testing.T) {
+	var tm tea.Model = newModel(t.TempDir())
+	m := tm.(model)
+	m.repos = []*repo.Repo{{Path: "/x/a", Name: "a"}}
+	m.fix()
+	tm, _ = m.Update(key("enter"))
+	tm, cmd := tm.Update(key("x"))
+	if got := tm.(model).Chosen(); got != "/x/a" {
+		t.Fatalf("chosen = %q", got)
+	}
+	if cmd == nil {
+		t.Fatal("want quit cmd")
+	}
+}
