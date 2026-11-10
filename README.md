@@ -10,7 +10,15 @@ A terminal UI for managing many git repos at once. It lists every repo in a fold
 
 ## Shell integration
 
-A program cannot change its parent shell's directory, so `Enter` needs a small wrapper. It sets `GOTREE_CD_FILE`, runs gotree, and `cd`s to the path gotree wrote there.
+A program cannot change its parent shell's directory, so `x` (cd) needs a small wrapper function `gt`. It sets `GOTREE_CD_FILE`, runs gotree, and `cd`s to the path gotree wrote there. gotree prints the wrapper for you:
+
+```bash
+eval "$(gotree --init bash)"      # ~/.bashrc
+eval "$(gotree --init zsh)"       # ~/.zshrc
+gotree --init fish | source       # ~/.config/fish/config.fish
+```
+
+Or paste it by hand:
 
 PowerShell (put in `$PROFILE`):
 
@@ -24,7 +32,7 @@ bash/zsh (put in `~/.bashrc` or `~/.zshrc`):
 gt() { local f; f=$(mktemp); GOTREE_CD_FILE=$f gotree "$@"; local p; p=$(cat "$f"); rm -f "$f"; [ -n "$p" ] && cd "$p"; }
 ```
 
-Without the wrapper, gotree prints the chosen path to stdout on `Enter`.
+Without the wrapper, gotree only prints the chosen path (plus a setup hint on stderr when stdout is a terminal).
 
 ## Usage
 

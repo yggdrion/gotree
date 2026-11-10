@@ -18,9 +18,19 @@ func writeCDFile(file, path string) error {
 
 func main() {
 	showVersion := flag.Bool("version", false, "print version and exit")
+	initShell := flag.String("init", "", "print the gt shell wrapper for `shell` (bash, zsh, fish, powershell) and exit")
 	flag.Parse()
 	if *showVersion {
 		fmt.Println("gotree " + version)
+		return
+	}
+	if *initShell != "" {
+		s, err := shellInit(*initShell)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "gotree:", err)
+			os.Exit(2)
+		}
+		fmt.Print(s)
 		return
 	}
 
@@ -60,4 +70,9 @@ func main() {
 		return
 	}
 	fmt.Print(chosen)
+	if fi, err := os.Stdout.Stat(); err == nil && fi.Mode()&os.ModeCharDevice != 0 {
+		// Printed to a terminal, so no wrapper is capturing it: say how to set one up.
+		fmt.Fprintln(os.Stderr, "\ngotree: cannot cd the calling shell by itself. Add this to your shell rc and use gt:")
+		fmt.Fprintln(os.Stderr, `  eval "$(gotree --init bash)"   # or zsh / fish (gotree --init fish | source) / powershell`)
+	}
 }
