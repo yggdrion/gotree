@@ -22,10 +22,15 @@ type Status struct {
 	Err           string    // last load/action error, short
 }
 
+// ignoreSpec excludes paths from status and clean: Claude Code keeps its own
+// worktrees in .claude/worktrees, which should not mark the repo dirty.
+var ignoreSpec = []string{"--", ".", ":(exclude).claude/worktrees"}
+
 // ReadStatus never panics; git errors land in Err and partial state is kept.
 func ReadStatus(path string) Status {
 	var s Status
-	out, err := git(path, "--no-optional-locks", "-c", "core.quotePath=false", "status", "--porcelain=v2", "--branch")
+	args := append([]string{"--no-optional-locks", "-c", "core.quotePath=false", "status", "--porcelain=v2", "--branch"}, ignoreSpec...)
+	out, err := git(path, args...)
 	if err != nil {
 		s.Err, _, _ = strings.Cut(err.Error(), "\n")
 		return s

@@ -96,3 +96,15 @@ func TestReadStatusUpdatedIgnoresIndexRefresh(t *testing.T) {
 		t.Fatalf("dirty file mtime not used: %v", got.Updated)
 	}
 }
+
+func TestReadStatusIgnoresClaudeWorktrees(t *testing.T) {
+	_, clone := newFixture(t)
+	gitT(t, clone, "worktree", "add", "-b", "wt", filepath.Join(clone, ".claude", "worktrees", "wt"))
+	if s := ReadStatus(clone); len(s.Files) != 0 || s.Err != "" {
+		t.Fatalf("worktree dir counted as dirty: %+v", s)
+	}
+	mustWrite(t, filepath.Join(clone, "new.txt"), "x")
+	if s := ReadStatus(clone); !reflect.DeepEqual(s.Files, []string{"new.txt"}) {
+		t.Fatalf("unexpected: %+v", s)
+	}
+}
