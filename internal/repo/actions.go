@@ -35,7 +35,7 @@ func BackToDefault(r *Repo, discard bool) error {
 		if _, err := git(r.Path, "reset", "--hard"); err != nil {
 			return fmt.Errorf("discard: %s", firstLine(err))
 		}
-		if _, err := git(r.Path, "clean", "-fd"); err != nil {
+		if _, err := git(r.Path, append([]string{"clean", "-fd"}, ignoreSpec...)...); err != nil {
 			return fmt.Errorf("discard: %s", firstLine(err))
 		}
 	}

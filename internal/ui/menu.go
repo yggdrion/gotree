@@ -9,8 +9,8 @@ import (
 
 type menuItem struct {
 	key, label string
-	why        string // non-empty = disabled, shows reason
-	run        func() tea.Cmd
+	why        string                 // non-empty = disabled, shows reason
+	run        func(m *model) tea.Cmd // gets the live model; closures over the openMenu receiver would mutate a stale copy
 }
 
 type menuState struct {
@@ -82,16 +82,16 @@ func (m *model) resetUpstream(r *repo.Repo) {
 
 func (m *model) openMenu(r *repo.Repo) {
 	items := []menuItem{
-		{key: "x", label: "cd into folder", run: func() tea.Cmd { return m.cd(r) }},
-		{key: "c", label: "open in VS Code", run: func() tea.Cmd { m.openEditor(r); return nil }},
-		{key: "b", label: "back to default branch + pull", why: whyNot(kBack, r), run: func() tea.Cmd { return m.dispatch(kBack) }},
-		{key: "p", label: "pull --ff-only", why: whyNot(kPull, r), run: func() tea.Cmd { return m.dispatch(kPull) }},
-		{key: "R", label: "reset --hard to upstream", why: whyNot(kReset, r), run: func() tea.Cmd { m.resetUpstream(r); return m.advance() }},
-		{key: "v", label: "view diff", run: func() tea.Cmd { m.openDiff(r); return nil }},
-		{key: "space", label: "select / unselect", run: func() tea.Cmd { m.toggleSel(r); return nil }},
+		{key: "x", label: "cd into folder", run: func(m *model) tea.Cmd { return m.cd(r) }},
+		{key: "c", label: "open in VS Code", run: func(m *model) tea.Cmd { m.openEditor(r); return nil }},
+		{key: "b", label: "back to default branch + pull", why: whyNot(kBack, r), run: func(m *model) tea.Cmd { return m.dispatch(kBack) }},
+		{key: "p", label: "pull --ff-only", why: whyNot(kPull, r), run: func(m *model) tea.Cmd { return m.dispatch(kPull) }},
+		{key: "R", label: "reset --hard to upstream", why: whyNot(kReset, r), run: func(m *model) tea.Cmd { m.resetUpstream(r); return m.advance() }},
+		{key: "v", label: "view diff", run: func(m *model) tea.Cmd { m.openDiff(r); return nil }},
+		{key: "space", label: "select / unselect", run: func(m *model) tea.Cmd { m.toggleSel(r); return nil }},
 	}
 	if r.IsWorktree {
-		items = append(items, menuItem{key: "d", label: "remove worktree", run: func() tea.Cmd { m.removeWT(r); return nil }})
+		items = append(items, menuItem{key: "d", label: "remove worktree", run: func(m *model) tea.Cmd { m.removeWT(r); return nil }})
 	}
 	m.menu = &menuState{r: r, items: items}
 }
@@ -104,7 +104,7 @@ func (m *model) menuKey(s string) tea.Cmd {
 			return nil
 		}
 		m.menu = nil
-		return it.run()
+		return it.run(m)
 	}
 	switch s {
 	case "esc", "q":
