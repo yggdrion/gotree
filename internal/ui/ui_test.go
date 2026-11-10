@@ -282,3 +282,40 @@ func TestMenuCdThroughUpdate(t *testing.T) {
 		t.Fatal("want quit cmd")
 	}
 }
+
+func TestPullAllOnlySimple(t *testing.T) {
+	m := newModel(t.TempDir())
+	up := repo.Status{Upstream: "origin/main", Behind: 2}
+	ok := &repo.Repo{Path: "/x/ok", Name: "ok", Status: up}
+	wt := &repo.Repo{Path: "/x/wt", Name: "wt", IsWorktree: true, Status: up}
+	ok.Worktrees = []*repo.Repo{wt}
+	ahead := up
+	ahead.Ahead = 1
+	dirty := up
+	dirty.Files = []string{"f"}
+	gone := up
+	gone.Gone = true
+	current := repo.Status{Upstream: "origin/main"}
+	m.repos = []*repo.Repo{
+		ok,
+		{Path: "/x/ahead", Name: "ahead", Status: ahead},
+		{Path: "/x/dirty", Name: "dirty", Status: dirty},
+		{Path: "/x/gone", Name: "gone", Status: gone},
+		{Path: "/x/current", Name: "current", Status: current},
+		{Path: "/x/noup", Name: "noup", Status: repo.Status{Behind: 1}},
+	}
+	m.fix()
+	m.key(tea.KeyPressMsg{Code: 'p', ShiftedCode: 'P', Mod: tea.ModShift})
+	t.Cleanup(func() { inflight.Delete(ok.Path); inflight.Delete(wt.Path) })
+	if len(m.busy) != 2 || !m.busy[ok.Path] || !m.busy[wt.Path] {
+		t.Fatalf("busy = %v", m.busy)
+	}
+
+	m = newModel(t.TempDir())
+	m.repos = []*repo.Repo{{Path: "/x/current", Name: "current", Status: current}}
+	m.fix()
+	m.key(key("P"))
+	if len(m.busy) != 0 || !strings.Contains(m.status, "nothing") {
+		t.Fatalf("busy=%v status=%q", m.busy, m.status)
+	}
+}

@@ -565,8 +565,35 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 		return m.dispatch(kBack)
 	case "p":
 		return m.dispatch(kPull)
+	case "P":
+		return m.pullAll()
 	}
 	return nil
+}
+
+// simplePull reports whether r can be fast-forwarded with nothing to lose:
+// clean, on a branch with a live upstream, behind and not ahead.
+func simplePull(r *repo.Repo) bool {
+	s := r.Status
+	return !s.Detached && s.Upstream != "" && !s.Gone && s.Behind > 0 && s.Ahead == 0 && len(s.Files) == 0 && s.Err == ""
+}
+
+// pullAll pulls every repo and worktree where a simple fast-forward is available.
+func (m *model) pullAll() tea.Cmd {
+	n := 0
+	for _, r := range m.all() {
+		if m.busy[r.Path] || !simplePull(r) {
+			continue
+		}
+		m.pending = append(m.pending, job{kind: kPull, repo: r})
+		n++
+	}
+	if n == 0 {
+		m.setStatus(false, "pull all: nothing behind that can fast-forward")
+		return nil
+	}
+	m.setStatus(true, "pull all: %d repos", n)
+	return m.advance()
 }
 
 // dispatch handles b and p on the selection (or cursor row); refusals only set the status line.

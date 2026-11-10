@@ -44,6 +44,7 @@ go run . <dir>  # from a checkout/worktree
 | `c` | open in VS Code |
 | `b` | back to default branch + pull |
 | `p` | pull (`--ff-only`) |
+| `P` | pull all repos that are clean, behind and not ahead |
 | `f` | fetch all |
 | `r` | refresh |
 | `space` | select |
