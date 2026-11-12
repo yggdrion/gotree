@@ -35,7 +35,7 @@ var helpLines = []string{
 	"  s         toggle sort: last updated / name",
 	"  space     select / unselect row",
 	"  →/←       unfold / fold worktrees (← on a child jumps to parent)",
-	"  d         remove worktree (asks first, branch is kept)",
+	"  d         remove worktree (branch is kept) / delete repo folder (asks first)",
 	"  /         filter by name (enter keeps, esc clears)",
 	"  ?         show this help",
 	"  q / esc   close overlay; quit when none is open",
@@ -96,6 +96,18 @@ func (m model) dialogLines() []string {
 	switch c.kind {
 	case kRemove:
 		l = append(l, fmt.Sprintf("Remove worktree %s? Branch %s is kept.", c.repo.Path, c.repo.Status.Branch))
+		if len(c.files) > 0 {
+			l = append(l, "Uncommitted changes, these changes will be lost:")
+		}
+	case kDelete:
+		st := c.repo.Status
+		l = append(l, fmt.Sprintf("DELETE repo folder %s? All local branches, stashes and unpushed commits (↑%d) are lost.", c.repo.Path, st.Ahead))
+		if n := len(c.repo.Worktrees); n > 0 {
+			l = append(l, fmt.Sprintf("It has %d worktree(s), deleting them too:", n))
+			for _, w := range c.repo.Worktrees {
+				l = append(l, "  "+w.Path)
+			}
+		}
 		if len(c.files) > 0 {
 			l = append(l, "Uncommitted changes, these changes will be lost:")
 		}

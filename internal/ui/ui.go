@@ -25,6 +25,7 @@ const (
 	kPull
 	kRemove
 	kReset
+	kDelete
 )
 
 type job struct {
@@ -319,7 +320,7 @@ func (m *model) run(j job) tea.Cmd {
 	top := m.topPath(p)
 	inflight.Store(p, true)
 	inflight.Store(top, true)
-	verb := map[kind]string{kBack: "back to default", kPull: "pull", kRemove: "remove worktree", kReset: "reset to upstream"}[j.kind]
+	verb := map[kind]string{kBack: "back to default", kPull: "pull", kRemove: "remove worktree", kReset: "reset to upstream", kDelete: "delete repo"}[j.kind]
 	return func() tea.Msg {
 		gitSem <- struct{}{}
 		defer func() { <-gitSem }()
@@ -337,6 +338,8 @@ func (m *model) run(j job) tea.Cmd {
 			err = repo.ResetToUpstream(j.repo)
 		case j.kind == kRemove:
 			err = repo.RemoveWorktree(j.repo, j.force)
+		case j.kind == kDelete:
+			err = repo.DeleteRepo(j.repo, j.files)
 		}
 		return actionDoneMsg{p, top, verb, err, repo.LoadRepo(top)}
 	}
