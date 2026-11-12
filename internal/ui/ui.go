@@ -25,6 +25,7 @@ const (
 	kPull
 	kRemove
 	kReset
+	kDelete
 )
 
 type job struct {
@@ -32,6 +33,7 @@ type job struct {
 	repo    *repo.Repo
 	discard bool     // kBack: reset+clean first
 	force   bool     // kRemove: --force
+	wts     bool     // kDelete: also delete the worktrees
 	files   []string // files the confirm dialog listed (destructive jobs)
 }
 
@@ -319,7 +321,7 @@ func (m *model) run(j job) tea.Cmd {
 	top := m.topPath(p)
 	inflight.Store(p, true)
 	inflight.Store(top, true)
-	verb := map[kind]string{kBack: "back to default", kPull: "pull", kRemove: "remove worktree", kReset: "reset to upstream"}[j.kind]
+	verb := map[kind]string{kBack: "back to default", kPull: "pull", kRemove: "remove worktree", kReset: "reset to upstream", kDelete: "delete repo"}[j.kind]
 	return func() tea.Msg {
 		gitSem <- struct{}{}
 		defer func() { <-gitSem }()
@@ -337,6 +339,8 @@ func (m *model) run(j job) tea.Cmd {
 			err = repo.ResetToUpstream(j.repo)
 		case j.kind == kRemove:
 			err = repo.RemoveWorktree(j.repo, j.force)
+		case j.kind == kDelete:
+			err = repo.DeleteRepo(j.repo, j.wts, j.files)
 		}
 		return actionDoneMsg{p, top, verb, err, repo.LoadRepo(top)}
 	}
@@ -455,7 +459,14 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 		m.queue = m.queue[1:]
 		switch s {
 		case "y":
-			m.pending = append(m.pending, job{kind: c.kind, repo: c.repo, discard: true, force: len(c.files) > 0, files: c.files})
+			m.pending = append(m.pending, job{kind: c.kind, repo: c.repo, discard: true, force: len(c.files) > 0, files: c.files, wts: true})
+		case "o":
+			if c.kind != kDelete || len(c.repo.Worktrees) == 0 {
+				m.setStatus(false, "skipped %s", c.repo.Name)
+				break
+			}
+			// repo only: worktree files are no longer part of what gets lost
+			m.pending = append(m.pending, job{kind: kDelete, repo: c.repo, files: repo.DeleteFiles(c.repo, false)})
 		case "esc":
 			m.queue, m.pending = nil, nil
 			m.setStatus(false, "cancelled")

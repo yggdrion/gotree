@@ -351,3 +351,22 @@ func TestEscClosesOverlayBeforeQuit(t *testing.T) {
 		}
 	}
 }
+
+func TestDeleteRepoDialogOffersWorktrees(t *testing.T) {
+	m := newModel("")
+	wt := &repo.Repo{Path: "wt", Name: "wt", IsWorktree: true}
+	r := &repo.Repo{Path: "r", Name: "r", Worktrees: []*repo.Repo{wt}}
+	m.repos = []*repo.Repo{r}
+	m.removeWT(r)
+	if len(m.queue) != 1 || m.queue[0].kind != kDelete {
+		t.Fatalf("queue = %v", m.queue)
+	}
+	if d := strings.Join(m.dialogLines(), "\n"); !strings.Contains(d, "wt") || !strings.Contains(d, "o = repo only") {
+		t.Errorf("dialog = %s", d)
+	}
+	press(&m, "o")
+	if len(m.pending) != 0 || len(m.busy) != 1 {
+		// advance() ran the job: pending drained, repo marked busy
+		t.Errorf("pending=%v busy=%v", m.pending, m.busy)
+	}
+}

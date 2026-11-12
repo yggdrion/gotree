@@ -3,7 +3,9 @@ package repo
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -109,6 +111,58 @@ func RemoveWorktree(wt *Repo, force bool) error {
 		return fmt.Errorf("worktree remove: %s", firstLine(err))
 	}
 	return nil
+}
+
+// DeleteFiles lists uncommitted files that deleting r (and its worktrees if withWTs) would lose.
+// Worktree entries are prefixed with the worktree name.
+func DeleteFiles(r *Repo, withWTs bool) []string {
+	files := append([]string(nil), r.Status.Files...)
+	if withWTs {
+		for _, w := range r.Worktrees {
+			for _, f := range ReadStatus(w.Path).Files {
+				files = append(files, w.Name+": "+f)
+			}
+		}
+	}
+	return files
+}
+
+func removeCheckout(path string) error {
+	if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {
+		return errors.New("not a git checkout: " + path)
+	}
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("delete: %s", firstLine(err))
+	}
+	return nil
+}
+
+// DeleteRepo removes the repo folder, and its linked worktrees when withWTs.
+// Without withWTs the worktrees are left behind and stop working.
+// Refuses if uncommitted files appeared that the dialog never listed.
+func DeleteRepo(r *Repo, withWTs bool, confirmed []string) error {
+	if r.IsWorktree {
+		return errors.New("not allowed on a worktree")
+	}
+	ok := map[string]bool{}
+	for _, f := range confirmed {
+		ok[f] = true
+	}
+	fresh := *r
+	fresh.Status = ReadStatus(r.Path)
+	for _, f := range DeleteFiles(&fresh, withWTs) {
+		if !ok[f] {
+			return errors.New("changed since confirm, press r")
+		}
+	}
+	if withWTs {
+		for _, w := range r.Worktrees {
+			if err := removeCheckout(w.Path); err != nil {
+				return err
+			}
+		}
+	}
+	return removeCheckout(r.Path)
 }
 
 func OpenEditor(path string) error {

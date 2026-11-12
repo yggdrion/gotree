@@ -40,14 +40,19 @@ func (m *model) toggleSel(r *repo.Repo) {
 	}
 }
 
+// removeWT asks to remove a worktree row, or to delete a whole repo (and optionally its worktrees).
 func (m *model) removeWT(r *repo.Repo) {
+	busy := m.busy[r.Path] || m.busy[m.topPath(r.Path)]
+	for _, w := range r.Worktrees {
+		busy = busy || m.busy[w.Path]
+	}
 	switch {
-	case !r.IsWorktree:
-		m.setStatus(false, "d: only on worktree rows")
-	case m.busy[r.Path] || m.busy[m.topPath(r.Path)]:
+	case busy:
 		m.setStatus(false, "busy")
-	default:
+	case r.IsWorktree:
 		m.queue = append(m.queue, confirm{r, kRemove, r.Status.Files})
+	default:
+		m.queue = append(m.queue, confirm{r, kDelete, repo.DeleteFiles(r, true)})
 	}
 }
 
@@ -90,9 +95,11 @@ func (m *model) openMenu(r *repo.Repo) {
 		{key: "v", label: "view diff", run: func(m *model) tea.Cmd { m.openDiff(r); return nil }},
 		{key: "space", label: "select / unselect", run: func(m *model) tea.Cmd { m.toggleSel(r); return nil }},
 	}
+	label := "delete repo"
 	if r.IsWorktree {
-		items = append(items, menuItem{key: "d", label: "remove worktree", run: func(m *model) tea.Cmd { m.removeWT(r); return nil }})
+		label = "remove worktree"
 	}
+	items = append(items, menuItem{key: "d", label: label, run: func(m *model) tea.Cmd { m.removeWT(r); return nil }})
 	m.menu = &menuState{r: r, items: items}
 }
 
