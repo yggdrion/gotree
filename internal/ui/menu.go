@@ -52,7 +52,7 @@ func (m *model) removeWT(r *repo.Repo) {
 	case r.IsWorktree:
 		m.queue = append(m.queue, confirm{r, kRemove, r.Status.Files})
 	default:
-		m.queue = append(m.queue, confirm{r, kDelete, repo.DeleteFiles(r, true)})
+		m.queue = append(m.queue, confirm{r, kDelete, repo.DeleteFiles(r)})
 	}
 }
 

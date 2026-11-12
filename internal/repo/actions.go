@@ -113,15 +113,13 @@ func RemoveWorktree(wt *Repo, force bool) error {
 	return nil
 }
 
-// DeleteFiles lists uncommitted files that deleting r (and its worktrees if withWTs) would lose.
+// DeleteFiles lists uncommitted files that deleting r and its worktrees would lose.
 // Worktree entries are prefixed with the worktree name.
-func DeleteFiles(r *Repo, withWTs bool) []string {
+func DeleteFiles(r *Repo) []string {
 	files := append([]string(nil), r.Status.Files...)
-	if withWTs {
-		for _, w := range r.Worktrees {
-			for _, f := range ReadStatus(w.Path).Files {
-				files = append(files, w.Name+": "+f)
-			}
+	for _, w := range r.Worktrees {
+		for _, f := range ReadStatus(w.Path).Files {
+			files = append(files, w.Name+": "+f)
 		}
 	}
 	return files
@@ -137,10 +135,9 @@ func removeCheckout(path string) error {
 	return nil
 }
 
-// DeleteRepo removes the repo folder, and its linked worktrees when withWTs.
-// Without withWTs the worktrees are left behind and stop working.
+// DeleteRepo removes the repo folder and its linked worktrees.
 // Refuses if uncommitted files appeared that the dialog never listed.
-func DeleteRepo(r *Repo, withWTs bool, confirmed []string) error {
+func DeleteRepo(r *Repo, confirmed []string) error {
 	if r.IsWorktree {
 		return errors.New("not allowed on a worktree")
 	}
@@ -150,16 +147,14 @@ func DeleteRepo(r *Repo, withWTs bool, confirmed []string) error {
 	}
 	fresh := *r
 	fresh.Status = ReadStatus(r.Path)
-	for _, f := range DeleteFiles(&fresh, withWTs) {
+	for _, f := range DeleteFiles(&fresh) {
 		if !ok[f] {
 			return errors.New("changed since confirm, press r")
 		}
 	}
-	if withWTs {
-		for _, w := range r.Worktrees {
-			if err := removeCheckout(w.Path); err != nil {
-				return err
-			}
+	for _, w := range r.Worktrees {
+		if err := removeCheckout(w.Path); err != nil {
+			return err
 		}
 	}
 	return removeCheckout(r.Path)

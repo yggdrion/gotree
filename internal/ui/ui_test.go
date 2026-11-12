@@ -361,10 +361,10 @@ func TestDeleteRepoDialogOffersWorktrees(t *testing.T) {
 	if len(m.queue) != 1 || m.queue[0].kind != kDelete {
 		t.Fatalf("queue = %v", m.queue)
 	}
-	if d := strings.Join(m.dialogLines(), "\n"); !strings.Contains(d, "wt") || !strings.Contains(d, "o = repo only") {
+	if d := strings.Join(m.dialogLines(), "\n"); !strings.Contains(d, "wt") {
 		t.Errorf("dialog = %s", d)
 	}
-	press(&m, "o")
+	press(&m, "y")
 	if len(m.pending) != 0 || len(m.busy) != 1 {
 		// advance() ran the job: pending drained, repo marked busy
 		t.Errorf("pending=%v busy=%v", m.pending, m.busy)

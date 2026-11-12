@@ -33,7 +33,6 @@ type job struct {
 	repo    *repo.Repo
 	discard bool     // kBack: reset+clean first
 	force   bool     // kRemove: --force
-	wts     bool     // kDelete: also delete the worktrees
 	files   []string // files the confirm dialog listed (destructive jobs)
 }
 
@@ -340,7 +339,7 @@ func (m *model) run(j job) tea.Cmd {
 		case j.kind == kRemove:
 			err = repo.RemoveWorktree(j.repo, j.force)
 		case j.kind == kDelete:
-			err = repo.DeleteRepo(j.repo, j.wts, j.files)
+			err = repo.DeleteRepo(j.repo, j.files)
 		}
 		return actionDoneMsg{p, top, verb, err, repo.LoadRepo(top)}
 	}
@@ -459,14 +458,7 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 		m.queue = m.queue[1:]
 		switch s {
 		case "y":
-			m.pending = append(m.pending, job{kind: c.kind, repo: c.repo, discard: true, force: len(c.files) > 0, files: c.files, wts: true})
-		case "o":
-			if c.kind != kDelete || len(c.repo.Worktrees) == 0 {
-				m.setStatus(false, "skipped %s", c.repo.Name)
-				break
-			}
-			// repo only: worktree files are no longer part of what gets lost
-			m.pending = append(m.pending, job{kind: kDelete, repo: c.repo, files: repo.DeleteFiles(c.repo, false)})
+			m.pending = append(m.pending, job{kind: c.kind, repo: c.repo, discard: true, force: len(c.files) > 0, files: c.files})
 		case "esc":
 			m.queue, m.pending = nil, nil
 			m.setStatus(false, "cancelled")

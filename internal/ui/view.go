@@ -124,9 +124,6 @@ func (m model) dialogLines() []string {
 		}
 		l = append(l, "  "+f)
 	}
-	if c.kind == kDelete && len(c.repo.Worktrees) > 0 {
-		return append(l, "y = delete repo + worktrees · o = repo only (worktrees break) · esc = cancel all · other = skip")
-	}
 	return append(l, "y = yes · esc = cancel all · any other key = skip this one")
 }
 
