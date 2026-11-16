@@ -183,3 +183,28 @@ func TestResetToUpstreamRefusals(t *testing.T) {
 	wantErr(t, ResetToUpstream(&Repo{}), "no upstream")
 	wantErr(t, ResetToUpstream(&Repo{Status: Status{Upstream: "origin/x", Gone: true}}), "upstream gone")
 }
+
+func TestDeleteRepoWithWorktrees(t *testing.T) {
+	_, clone := newFixture(t)
+	wt := filepath.Join(t.TempDir(), "wt1")
+	gitT(t, clone, "worktree", "add", "-b", "claude/wt1", wt)
+	mustWrite(t, filepath.Join(wt, "dirty.txt"), "x")
+	main := LoadRepo(clone)
+	files := DeleteFiles(main)
+	if len(files) != 1 || files[0] != "wt1: dirty.txt" {
+		t.Fatalf("files = %v", files)
+	}
+	wantErr(t, DeleteRepo(main, nil), "changed since confirm, press r")
+	if err := DeleteRepo(main, files); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{clone, wt} {
+		if _, err := os.Stat(p); err == nil {
+			t.Fatalf("%s remains", p)
+		}
+	}
+}
+
+func TestDeleteRepoRefusesWorktree(t *testing.T) {
+	wantErr(t, DeleteRepo(&Repo{Path: "x", IsWorktree: true}, nil), "not allowed on a worktree")
+}
