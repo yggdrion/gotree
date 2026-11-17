@@ -30,7 +30,7 @@ var helpLines = []string{
 	"  P         pull all: every clean repo that is behind and not ahead",
 	"  R         reset --hard to upstream (asks first)",
 	"  v         view diff (uncommitted changes vs HEAD)",
-	"  f         fetch all repos",
+	"  f         fetch all repos (autofetch: see config.json in your user config dir)",
 	"  r         re-read local state of all repos and re-sort",
 	"  s         toggle sort: last updated / name",
 	"  space     select / unselect row",
@@ -221,6 +221,9 @@ func (m model) header() string {
 		l += "  /" + v
 	}
 	r := fmt.Sprintf("%d repos · sort: %s", len(m.repos), m.sort)
+	if m.autofetch {
+		r += " · autofetch: " + m.interval.String()
+	}
 	switch {
 	case m.loading:
 		r += "   loading…"
@@ -254,6 +257,16 @@ func (m model) render() string {
 	}
 	if m.help {
 		body = overlay(body, box(append(helpLines, "", " esc/q/? close"), w), w)
+	}
+	if m.askFetch {
+		body = overlay(body, box([]string{
+			" Enable autofetch?",
+			"",
+			fmt.Sprintf(" Fetch all repos after start and every %s.", m.interval),
+			" Saved to the gotree config file; edit it to change.",
+			"",
+			" y enable · n disable · esc quit",
+		}, w), w)
 	}
 	if m.menu != nil {
 		body = overlay(body, m.menuBox(w), w)
