@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/yggdrion/gotree/internal/config"
 	"github.com/yggdrion/gotree/internal/repo"
 )
 
@@ -368,5 +369,59 @@ func TestDeleteRepoDialogOffersWorktrees(t *testing.T) {
 	if len(m.pending) != 0 || len(m.busy) != 1 {
 		// advance() ran the job: pending drained, repo marked busy
 		t.Errorf("pending=%v busy=%v", m.pending, m.busy)
+	}
+}
+
+func isolateConfig(t *testing.T) {
+	d := t.TempDir()
+	t.Setenv("AppData", d)
+	t.Setenv("XDG_CONFIG_HOME", d)
+	t.Setenv("HOME", d)
+}
+
+func TestAutofetchPromptAnswerSaves(t *testing.T) {
+	isolateConfig(t)
+	m := newModel("").withConfig(config.Config{})
+	if !m.askFetch || m.autofetch {
+		t.Fatalf("first run should ask and not fetch: ask=%v auto=%v", m.askFetch, m.autofetch)
+	}
+	press(&m, "j") // ignored while asking
+	if !m.askFetch {
+		t.Fatal("other keys must not dismiss prompt")
+	}
+	press(&m, "y")
+	if m.askFetch || !m.autofetch {
+		t.Fatalf("y should enable: ask=%v auto=%v", m.askFetch, m.autofetch)
+	}
+	if c := config.Load(); c.Autofetch == nil || !*c.Autofetch {
+		t.Fatalf("not saved: %+v", c)
+	}
+	if again := newModel("").withConfig(config.Load()); again.askFetch || !again.autofetch {
+		t.Fatal("answered config must not prompt again")
+	}
+}
+
+func TestAutofetchDisabledSkipsFetch(t *testing.T) {
+	isolateConfig(t)
+	off := false
+	m := newModel("").withConfig(config.Config{Autofetch: &off})
+	m.repos = []*repo.Repo{{Path: "a", Name: "a"}}
+	m.loading = false
+	m.update(tickMsg{})
+	m.update(loadDoneMsg{})
+	if m.fetchTotal != 0 {
+		t.Fatalf("disabled autofetch fetched: total=%d", m.fetchTotal)
+	}
+}
+
+func TestTickFetchesWhenIdle(t *testing.T) {
+	m := newModel("")
+	m.repos = []*repo.Repo{{Path: "a", Name: "a"}}
+	m.loading = false
+	if cmd := m.update(tickMsg{}); cmd == nil {
+		t.Fatal("tick must re-arm")
+	}
+	if m.fetchTotal != 1 {
+		t.Fatalf("tick did not start fetch: total=%d", m.fetchTotal)
 	}
 }

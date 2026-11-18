@@ -61,3 +61,13 @@ go run . <dir>  # from a checkout/worktree
 | `/` | filter |
 | `?` | help |
 | `q` | quit |
+
+## Autofetch
+
+On first launch gotree asks whether to fetch all repos automatically (after start and every 5 minutes). The answer is stored in `config.json` under your user config dir (`%AppData%\gotree` on Windows, `~/Library/Application Support/gotree` on macOS, `$XDG_CONFIG_HOME/gotree` or `~/.config/gotree` on Linux):
+
+```json
+{ "autofetch": true, "autofetch_interval_minutes": 5 }
+```
+
+Edit it to change the interval or set `autofetch` to `false`; delete the file to be asked again. With autofetch off, `f` still fetches on demand.

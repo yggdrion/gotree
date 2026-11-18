@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/yggdrion/gotree/internal/config"
 	"github.com/yggdrion/gotree/internal/repo"
 )
 
@@ -88,6 +90,11 @@ type model struct {
 	loading                bool
 	fetchDone, fetchTotal  int
 	reloadDone, reloadLeft int
+
+	cfg       config.Config
+	autofetch bool          // fetch after load and every interval
+	interval  time.Duration // autofetch period
+	askFetch  bool          // first-run prompt is showing
 }
 
 func newModel(root string) model {
@@ -96,8 +103,36 @@ func newModel(root string) model {
 	return model{
 		root: root, paths: repo.QuickOrder(root), loading: true, filter: ti,
 		busy: map[string]bool{}, sel: map[string]bool{}, errs: map[string]string{},
-		out: make(chan tea.Msg, 64),
+		out: make(chan tea.Msg, 64), autofetch: true, interval: config.Config{}.Interval(),
 	}
+}
+
+// withConfig applies saved settings; an unanswered autofetch setting raises the first-run prompt.
+func (m model) withConfig(c config.Config) model {
+	m.cfg = c
+	m.interval = c.Interval()
+	m.askFetch = c.Autofetch == nil
+	m.autofetch = c.Autofetch != nil && *c.Autofetch
+	return m
+}
+
+// answerFetch records the first-run choice, saves it, and starts fetching when enabled.
+func (m *model) answerFetch(on bool) tea.Cmd {
+	m.askFetch, m.autofetch = false, on
+	m.cfg.Autofetch = &on
+	if err := config.Save(m.cfg); err != nil {
+		m.setStatus(false, "config: %s", err)
+	}
+	if on && !m.loading && !m.fetching() {
+		m.startFetch()
+	}
+	return nil
+}
+
+type tickMsg struct{}
+
+func (m model) tick() tea.Cmd {
+	return tea.Tick(m.interval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
 func (m model) Chosen() string { return m.chosen }
@@ -132,7 +167,7 @@ func (m model) Init() tea.Cmd {
 		runPool(m.paths, func(p string) tea.Msg { return repoLoadedMsg{repo.LoadRepo(p)} }, m.out)
 		m.out <- loadDoneMsg{}
 	}()
-	return listen(m.out)
+	return tea.Batch(listen(m.out), m.tick())
 }
 
 // planBatch splits targets into clean ones and ones with uncommitted files, keeping order.
@@ -392,8 +427,15 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 	case loadDoneMsg:
 		m.loading = false
 		m.resort()
-		m.startFetch()
+		if m.autofetch {
+			m.startFetch()
+		}
 		return listen(m.out)
+	case tickMsg:
+		if m.autofetch && !m.loading && !m.fetching() {
+			m.startFetch()
+		}
+		return m.tick()
 	case fetchedMsg:
 		m.fetchDone++
 		if msg.skip {
@@ -466,6 +508,17 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 			m.setStatus(false, "skipped %s", c.repo.Name)
 		}
 		return m.advance()
+	}
+	if m.askFetch {
+		switch s {
+		case "y":
+			return m.answerFetch(true)
+		case "n":
+			return m.answerFetch(false)
+		case "q", "esc":
+			return tea.Quit
+		}
+		return nil
 	}
 	if m.diff != nil {
 		m.diffKey(s)
@@ -657,7 +710,7 @@ func (m model) fetching() bool { return m.fetchDone < m.fetchTotal }
 
 // Run starts the TUI on root and returns the chosen path ("" if none).
 func Run(root string) (string, error) {
-	final, err := tea.NewProgram(newModel(root)).Run()
+	final, err := tea.NewProgram(newModel(root).withConfig(config.Load())).Run()
 	if err != nil {
 		return "", err
 	}
