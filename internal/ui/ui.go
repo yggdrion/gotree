@@ -600,6 +600,8 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 		return m.cd(cur)
 	case "c":
 		m.openEditor(cur)
+	case "o":
+		m.openRemote(cur)
 	case "space":
 		m.toggleSel(cur)
 	case "right", "l":

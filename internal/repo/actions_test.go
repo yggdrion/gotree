@@ -208,3 +208,21 @@ func TestDeleteRepoWithWorktrees(t *testing.T) {
 func TestDeleteRepoRefusesWorktree(t *testing.T) {
 	wantErr(t, DeleteRepo(&Repo{Path: "x", IsWorktree: true}, nil), "not allowed on a worktree")
 }
+
+func TestRemoteURL(t *testing.T) {
+	_, clone := newFixture(t)
+	for in, want := range map[string]string{
+		"git@github.com:plentymarkets/gotree.git":          "https://github.com/plentymarkets/gotree",
+		"ssh://git@github.com:22/yggdrion/gotree.git":      "https://github.com/yggdrion/gotree",
+		"https://user:tok@github.com/yggdrion/gotree.git/": "https://github.com/yggdrion/gotree",
+		"https://github.com/yggdrion/gotree":               "https://github.com/yggdrion/gotree",
+	} {
+		gitT(t, clone, "remote", "set-url", "origin", in)
+		got, err := RemoteURL(clone)
+		if err != nil || got != want {
+			t.Errorf("%s -> %q, %v; want %q", in, got, err, want)
+		}
+	}
+	gitT(t, clone, "remote", "remove", "origin")
+	wantErr(t, func() error { _, err := RemoteURL(clone); return err }(), "no origin remote")
+}
