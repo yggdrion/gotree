@@ -3,9 +3,11 @@ package repo
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -166,6 +168,61 @@ func OpenEditor(path string) error {
 		return errors.New("VS Code 'code' command not found on PATH")
 	}
 	cmd := exec.Command(bin, path)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("open: %s", firstLine(err))
+	}
+	go func() { _ = cmd.Wait() }() // reap
+	return nil
+}
+
+// RemoteURL turns the origin URL (ssh, scp-style or https) into a browsable https URL.
+func RemoteURL(path string) (string, error) {
+	raw, err := git(path, "remote", "get-url", "origin")
+	if err != nil || raw == "" {
+		return "", errors.New("no origin remote")
+	}
+	u := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSpace(raw), "/"), ".git")
+	switch {
+	case strings.HasPrefix(u, "https://"), strings.HasPrefix(u, "http://"):
+		if p, err := url.Parse(u); err == nil {
+			p.User = nil // drop embedded credentials
+			u = p.String()
+		}
+	case strings.HasPrefix(u, "ssh://"), strings.HasPrefix(u, "git://"):
+		p, err := url.Parse(u)
+		if err != nil || p.Hostname() == "" {
+			return "", errors.New("unsupported origin: " + FirstLine(raw))
+		}
+		u = "https://" + p.Hostname() + p.Path
+	default: // scp-style git@host:owner/repo
+		_, hostPath, ok := strings.Cut(u, "@")
+		if !ok {
+			hostPath = u
+		}
+		host, p, ok := strings.Cut(hostPath, ":")
+		if !ok || host == "" || strings.Contains(host, "/") {
+			return "", errors.New("unsupported origin: " + FirstLine(raw))
+		}
+		u = "https://" + host + "/" + strings.TrimPrefix(p, "/")
+	}
+	return u, nil
+}
+
+// OpenRemote opens the origin remote of the repo at path in the default browser.
+func OpenRemote(path string) error {
+	u, err := RemoteURL(path)
+	if err != nil {
+		return err
+	}
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", u)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", u)
+	default:
+		cmd = exec.Command("xdg-open", u)
+	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("open: %s", firstLine(err))
 	}

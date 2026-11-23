@@ -32,6 +32,14 @@ func (m *model) openEditor(r *repo.Repo) {
 	}
 }
 
+func (m *model) openRemote(r *repo.Repo) {
+	if err := repo.OpenRemote(r.Path); err != nil {
+		m.setStatus(false, "%s", err)
+	} else {
+		m.setStatus(true, "opened %s in browser", r.Name)
+	}
+}
+
 func (m *model) toggleSel(r *repo.Repo) {
 	if m.sel[r.Path] {
 		delete(m.sel, r.Path)
@@ -40,7 +48,7 @@ func (m *model) toggleSel(r *repo.Repo) {
 	}
 }
 
-// removeWT asks to remove a worktree row, or to delete a whole repo (and optionally its worktrees).
+// removeWT asks to remove a worktree row, or to delete a whole repo together with its worktrees.
 func (m *model) removeWT(r *repo.Repo) {
 	busy := m.busy[r.Path] || m.busy[m.topPath(r.Path)]
 	for _, w := range r.Worktrees {
@@ -89,6 +97,7 @@ func (m *model) openMenu(r *repo.Repo) {
 	items := []menuItem{
 		{key: "x", label: "cd into folder", run: func(m *model) tea.Cmd { return m.cd(r) }},
 		{key: "c", label: "open in VS Code", run: func(m *model) tea.Cmd { m.openEditor(r); return nil }},
+		{key: "o", label: "open on GitHub", run: func(m *model) tea.Cmd { m.openRemote(r); return nil }},
 		{key: "b", label: "back to default branch + pull", why: whyNot(kBack, r), run: func(m *model) tea.Cmd { return m.dispatch(kBack) }},
 		{key: "p", label: "pull --ff-only", why: whyNot(kPull, r), run: func(m *model) tea.Cmd { return m.dispatch(kPull) }},
 		{key: "R", label: "reset --hard to upstream", why: whyNot(kReset, r), run: func(m *model) tea.Cmd { m.resetUpstream(r); return m.advance() }},

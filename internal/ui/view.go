@@ -18,13 +18,14 @@ const (
 	cursorBG, selectedBG             = "238", "24"
 )
 
-const footer = " enter menu · x cd · c code · b back+pull · p pull · P pull all · R reset · v diff · space select · f fetch · r refresh · s sort · →/← fold · d del worktree · / filter · ? help · q quit"
+const footer = " enter menu · x cd · c code · b back+pull · p pull · P pull all · R reset · v diff · space select · f fetch · r refresh · s sort · →/← fold · d delete · o github · / filter · ? help · q quit"
 
 var helpLines = []string{
 	"  ↑/↓ j/k   move",
 	"  enter     action menu (shows repo state)",
 	"  x         cd into the folder and quit",
 	"  c         open in VS Code",
+	"  o         open the origin remote in the browser",
 	"  b         back to default branch + pull (selection or cursor row)",
 	"  p         pull --ff-only (selection or cursor row)",
 	"  P         pull all: every clean repo that is behind and not ahead",
